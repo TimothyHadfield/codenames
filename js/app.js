@@ -3,7 +3,7 @@
 import * as E from './engine.js';
 import { game, setAssoc, setBoardWords, role, seatName } from './game.js';
 
-const BUILD = '2026-10-20.1';
+const BUILD = '2026-10-20.2';
 const LS = 'codenames:v1';
 const $ = (s, el = document) => el.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -582,7 +582,7 @@ function onlineSetupHTML() {
     <div class="field"><input id="oname" maxlength="20" placeholder="Your name" value="${esc(S.settings.name)}" aria-label="Your name"></div>
     <div class="row" style="margin-top:10px"><div class="seg">${[['classic', 'Two teams'], ['coop', 'Two-player'], ['duet', 'Duet']].map(([v, l]) => `<button data-act="ovar" data-v="${v}" class="${su.onlineVariant === v ? 'on' : ''}">${l}</button>`).join('')}</div>
     ${su.onlineVariant === 'classic' ? `<div class="stepper" style="height:34px"><button data-act="oseats-">−</button><b style="font-size:15px;padding:0 4px">${su.onlineSeats}</b><button data-act="oseats+">+</button></div><span class="small muted">seats</span>` : ''}</div>
-    <div class="row" style="margin-top:10px"><button class="btn main" data-act="ocreate">Create room</button></div>
+    <div class="row" style="margin-top:10px"><button class="btn main" data-act="ocreate" ${ASSOC ? '' : 'disabled'}>${ASSOC ? 'Create room' : 'Loading word links…'}</button></div>
     <div class="field" style="margin-top:14px"><input id="ocode" maxlength="5" placeholder="Room code" autocapitalize="characters" style="text-transform:uppercase;letter-spacing:.15em;font-weight:700" aria-label="Room code"></div>
     <div class="row" style="margin-top:8px"><button class="btn" data-act="ojoin">Join</button><span class="small muted">Free online play; empty seats become computers.</span></div>`;
 }
