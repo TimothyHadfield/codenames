@@ -3,7 +3,7 @@
 import * as E from './engine.js';
 import { game, setAssoc, setBoardWords, role, seatName } from './game.js';
 
-const BUILD = '2026-10-20.2';
+const BUILD = '2026-10-20.3';
 const LS = 'codenames:v1';
 const $ = (s, el = document) => el.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -398,9 +398,11 @@ function renderPlay() {
   else status = `<span class="counts"><span><i class="dot R"></i>${pub.counts.R}</span><span><i class="dot B"></i>${pub.counts.B}</span></span>`;
   const turnTeam = duet ? null : pub.turn;
   const actorName = over ? '' : who(pub, snap);
+  const thinking = !over && (snap.toAct || []).some(i => snap.seats[i]?.kind === 'computer');
+  const barCls = `cluebar${over ? '' : duet ? ' t-G' : ` t-${turnTeam}`}${thinking ? ' think' : ''}`;
   const banner = pub.clue
-    ? `<div class="cluebar"><span class="who">${over ? 'Last clue' : duet ? 'Clue' : `<i class="dot ${turnTeam}"></i>`}</span><span class="cw">${esc(pub.clue.word)}</span><span class="cn">${pub.clue.n < 0 ? '∞' : pub.clue.n}</span>${!duet && !over ? `<span class="who">${pub.guessesLeft >= 99 ? 'no limit' : pub.guessesLeft + ' left'}</span>` : ''}</div>`
-    : `<div class="cluebar"><span class="who">${over ? 'Game over' : esc(actorName)}</span></div>`;
+    ? `<div class="${barCls}"><span class="who">${over ? 'Last clue' : duet ? 'Clue' : `<i class="dot ${turnTeam}"></i>`}</span><span class="cw">${esc(pub.clue.word)}</span><span class="cn">${pub.clue.n < 0 ? '∞' : pub.clue.n}</span>${!duet && !over ? `<span class="who">${pub.guessesLeft >= 99 ? 'no limit' : pub.guessesLeft + ' left'}</span>` : ''}</div>`
+    : `<div class="${barCls}"><span class="who">${over ? 'Game over' : esc(actorName)}</span></div>`;
 
   // ---- what can I tap?
   let tapMode = null; // 'guess' | 'cover' | 'sd'
@@ -453,7 +455,7 @@ function renderPlay() {
   } else if (tapMode === 'sd') {
     panel = `<div class="result"><b>Sudden death</b><p class="small muted">No more clues. Tap a word you think is green for your partner. Any miss loses.</p></div>`;
   } else {
-    panel = `<div class="row muted"><span>${esc(actorName)}</span></div>`;
+    panel = pub.clue ? `<div class="row muted"><span>${esc(actorName)}</span></div>` : '';
   }
   panel += logHTML(pub, boardIdx);
   panel += `<div class="row" style="margin-top:12px"><button class="btn small" data-act="quit">${over ? 'New game' : 'Quit game'}</button>${S.play.kind === 'online' ? `<span class="small muted">Room <b style="color:var(--warm)">${esc(snap.code)}</b></span>` : ''}</div>`;
@@ -530,7 +532,9 @@ function reviewHTML(pub, myRole) {
 function showCover(seat, name) {
   if ($('#layer .cover')) return;
   const el = document.createElement('div');
-  el.className = 'cover';
+  const st = S.play?.state;
+  const r = st ? role(st, seat) : {};
+  el.className = 'cover' + (st?.variant === 'duet' ? ' t-G' : r.team ? ' t-' + r.team : '');
   el.innerHTML = `${ART.person.replace('<svg', '<svg width="60" height="60"')}<h2>Pass to ${esc(name)}</h2><p>${/spymaster|Player/.test(name) ? 'Only they should look: the key is on the next screen.' : 'The key is hidden now.'}</p><button class="btn main">I'm ${esc(name)}</button>`;
   el.querySelector('button').onclick = () => { S.play.shown = seat; S.play.lastSeat = seat; save(); el.remove(); renderPlay(); };
   $('#layer').appendChild(el);
@@ -550,7 +554,7 @@ function renderSetup(el) {
   } else if (su.pick === 'online') {
     extra = onlineSetupHTML();
   }
-  el.innerHTML = `<div class="stage"><div class="panel" style="flex:1;max-width:560px;margin:0 auto;width:100%">
+  el.innerHTML = `<div class="stage"><div class="panel setup" style="flex:1;max-width:560px;margin:0 auto;width:100%">
     <h3>New game</h3>
     <div class="choices">
       ${opt('guess', ART.person.replace('<svg', '<svg style="color:#6ea8fe"'), 'You guess', 'Computer spymaster gives you clues')}
@@ -665,13 +669,13 @@ function renderLinks() {
       const on = sel == null || sel === i || sel === j;
       const mx = (cx(i) + cx(j)) / 2, my = (cy(i) + cy(j)) / 2;
       const bend = (Math.abs(cx(i) - cx(j)) > 100 || Math.abs(cy(i) - cy(j)) > 68) ? 18 : 0;
-      return `<path d="M${cx(i)} ${cy(i)} Q${mx + bend} ${my - bend} ${cx(j)} ${cy(j)}" fill="none" stroke="${on ? 'var(--warm)' : '#3a4157'}" stroke-opacity="${on ? 0.35 + s : 0.5}" stroke-width="${(1 + (s - shown.at(-1)[2]) * 18).toFixed(1)}" stroke-linecap="round"/>`;
+      return `<path d="M${cx(i)} ${cy(i)} Q${mx + bend} ${my - bend} ${cx(j)} ${cy(j)}" fill="none" stroke="${on ? 'var(--warm)' : '#4a5270'}" stroke-opacity="${on ? 0.45 + s : 0.55}" stroke-width="${(1 + (s - shown.at(-1)[2]) * 18).toFixed(1)}" stroke-linecap="round"/>`;
     }).join('');
     const nodes = b.idx.map((w, i) => {
       const word = META.board[w];
       const on = sel === i;
-      const fs = word.length > 7 ? 10 : 11.5;
-      return `<g data-node="${i}" style="cursor:pointer"><rect x="${cx(i) - 45}" y="${cy(i) - 14}" width="90" height="28" rx="6" fill="${on ? 'var(--warm)' : 'var(--paper)'}" stroke="${on ? '#fff' : 'rgba(0,0,0,.2)'}"/><text x="${cx(i)}" y="${cy(i) + 4}" text-anchor="middle" fill="var(--ink)" style="font-size:${fs}px">${esc(word)}</text></g>`;
+      const fs = word.length > 8 ? 11 : word.length > 6 ? 12.5 : 14;
+      return `<g data-node="${i}" style="cursor:pointer"><rect x="${cx(i) - 50}" y="${cy(i) - 34}" width="100" height="68" fill="transparent"/><rect x="${cx(i) - 46}" y="${cy(i) - 17}" width="92" height="34" rx="7" fill="${on ? 'var(--warm)' : 'var(--paper)'}" stroke="${on ? '#fff' : 'rgba(0,0,0,.2)'}"/><text x="${cx(i)}" y="${cy(i) + 4.5}" text-anchor="middle" fill="var(--ink)" style="font-size:${fs}px">${esc(word)}</text></g>`;
     }).join('');
     mapHTML = `<div class="map"><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Links between board words">${lines}${nodes}</svg></div>`;
     if (sel != null) {
