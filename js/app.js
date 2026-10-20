@@ -2,8 +2,10 @@
 // Links (word connections explorer), Settings. Rules live in engine.js + game.js.
 import * as E from './engine.js';
 import { game, setAssoc, setBoardWords, role, seatName } from './game.js';
+import './fx.js';
+import { createSfx } from './sfx.js';
 
-const BUILD = '2026-10-20.3';
+const BUILD = '2026-10-20.4';
 const LS = 'codenames:v1';
 const $ = (s, el = document) => el.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -46,6 +48,35 @@ function save() { try { localStorage.setItem(LS, JSON.stringify(S)); } catch (e)
 const draft = { table: { word: '', n: 1 }, play: { word: '', n: 1 } };
 let META = null, ASSOC = null, assocErr = null;
 let gen = 0, botTimer = null, online = null, osnap = null, hint = null;
+
+// ------------------------------------------------------------------ sound & effects (js/fx.js + js/sfx.js)
+const FX = window.FX;
+const fxClasses = () => {
+  const st = FX.settings, r = document.documentElement.classList;
+  r.toggle('fx-still', !st.animations); r.toggle('fx-fast', st.animSpeed === 'fast');
+};
+FX.init({ game: 'codenames', accent: '#6ea8fe', clickSelector: 'button:not(.card)', onChange: fxClasses });
+fxClasses();
+const sfx = createSfx(FX, {
+  card: p => document.querySelector(`#tab-play .card[data-pos="${p}"]`),
+  board: () => document.querySelector('#tab-play .board'),
+  tableCard: p => document.querySelector(`#tab-table .card[data-pos="${p}"]`),
+  tableBoard: () => document.querySelector('#tab-table .board'),
+  cluebar: () => document.querySelector('#tab-play .cluebar'),
+  clueWord: () => document.querySelector('#tab-play .cluebar .cw'),
+  count: t => document.querySelector(`#tab-play .counts span:nth-child(${t === 'B' ? 2 : 1})`),
+  timer: () => document.querySelector('#tab-play .turnline b'),
+});
+let tapAt = 0; // when this phone last made a move (its own sounds play at full volume)
+function fxCheck() {
+  const snap = currentSnap();
+  if (!snap || !snap.pub) { sfx.check(null); return; }
+  const pub = snap.pub, st = { variant: pub.variant, start: pub.start };
+  const teams = new Set();
+  if (S.play.kind === 'local') S.play.seats.forEach((k, i) => { if (k === 'human') teams.add(role(st, i).team); });
+  else if (snap.mySeat >= 0) teams.add(role(st, snap.mySeat).team);
+  sfx.check({ pub, myTurn: snap.myTurn, teams, mine: Date.now() - tapAt < 700 });
+}
 
 // ------------------------------------------------------------------ data loading
 async function loadData() {
@@ -262,12 +293,14 @@ function tableTap(p) {
     if (b.key[p] === 'A') toast('Assassin! ' + (t.spy ? '' : 'That team loses.'));
   }
   save(); renderTable();
+  sfx.table(t.variant === 'duet' ? ['undo', 'G', 'N'][t.marks[p]] : tableBoard().key[p], p);
 }
 function tableUndo() {
   const t = S.table, last = t.order.pop();
   if (!last) return;
   if (t.variant === 'duet') t.marks[last.p] = last.prev; else t.revealed[last.p] = false;
   save(); renderTable();
+  sfx.table('undo', last.p);
 }
 function codeSheet() {
   const t = S.table;
@@ -311,7 +344,7 @@ function localAct(seat, action) {
   const P = S.play;
   try {
     P.state = game.apply(clone(P.state), seat, clone(action));
-  } catch (e) { toast(e.message); return false; }
+  } catch (e) { FX.play('error'); toast(e.message); return false; }
   save(); renderAll(); scheduleBots();
   return true;
 }
@@ -353,9 +386,9 @@ function currentSnap() {
   return localSnap();
 }
 function act(action) {
-  hint = null;
+  hint = null; tapAt = Date.now();
   if (S.play.kind === 'online') {
-    online.act(action).then(r => { if (!r.ok) toast(r.message); });
+    online.act(action).then(r => { if (!r.ok) { FX.play('error'); toast(r.message); } });
     return true;
   }
   const snap = localSnap();
@@ -463,6 +496,7 @@ function renderPlay() {
   keepFocus(el, () => {
     el.innerHTML = `<div class="stage"><div class="boardwrap"><div class="bar">${status}<span class="grow"></span>${seat >= 0 ? `<span class="chip">${esc(seatLabel(pub, seat, snap))}</span>` : ''}</div>${banner}${bHTML}</div><div class="panel">${panel}</div></div>`;
   });
+  fxCheck();
 }
 
 function roleFromPub(pub, seat) {
@@ -717,8 +751,10 @@ function renderSettings() {
     <div class="set-row"><span class="lab">Duet turns</span><div class="seg">${[9, 10, 11].map(n => `<button data-act="timer" data-v="${n}" class="${st.duetTimer === n ? 'on' : ''}">${n}</button>`).join('')}</div></div>
     <div class="set-row"><span class="lab">How strong? <button class="q" data-help="strength">?</button></span><span class="small muted">measured</span></div>
     ${strengthTable()}
+    <h3 style="margin-top:16px">Sound &amp; effects</h3><div id="fxSet"></div>
     <p class="small muted" style="margin-top:14px">Word links: GloVe 6B (Stanford NLP, public domain), cut to ${META ? META.board.length : '…'} board words × ${META ? META.clues.length.toLocaleString() : '…'} clue words. Board list is this site's own. Build ${BUILD}.</p>
   </div></div>`;
+  FX.renderSettings($('#fxSet', el));
 }
 function strengthTable() {
   if (!STRENGTH) return '';
@@ -743,6 +779,7 @@ function renderAll() {
   else if (S.tab === 'play') renderPlay();
   else if (S.tab === 'links') renderLinks();
   else renderSettings();
+  if (S.tab !== 'play' && META) fxCheck(); // moves made while you look at another tab still sound
 }
 
 // ------------------------------------------------------------------ events

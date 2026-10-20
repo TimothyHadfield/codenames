@@ -20,6 +20,7 @@ Phase 2 of the board-game wave is built: exact-rules play (classic, two-player, 
 | Links tab (connection map, word lookup) | Done |
 | Measured computer strength (Settings → How strong?) | Done, 300 games per row |
 | `docs/rules-check.md`, `docs/ideas.md` | Done |
+| Sound & effects (2026-10-20) | Done: shared `js/fx.js` (copied unchanged from `_fx/`) + `js/sfx.js` (event → sound from public-view diffs, so computer and online moves sound too), Settings → Sound & effects, win/lose/big celebrations |
 | Visual design pass (2026-10-20) | Done: deeper key tints + thicker edge, cards with thickness and a press-down, heat bar on the top edge, team-tinted clue bar (pulses while the computer thinks), team-tinted pass screen (opaque), laptop board fills the height, 2-column setup on laptop, bigger Links tap areas |
 
 ## Authorized next steps
@@ -29,6 +30,26 @@ Phase 2 of the board-game wave is built: exact-rules play (classic, two-player, 
 - Phase-2 brief: "build regular play online with a computer or other online players for all the games and their common varients that match exactly the play of the in-person game. 2. Brainstorm what additions you can do to the game with data, exploration, theory, etc. (ex: using connections to measure how similar words are to each other in codenames). 3. Implement your good ideas. 4. Really work on the webdesign of the games, aswell as art, fitting it with an iphone and computer, or anything else. 5. make sure that everything works properlly without errors or whatnot. ... Make sure to get everything right like rules and artwork and specific numbers of cards, routes, details, etc."
 - First brief: "Pass-the-phone play; computer clue-giver that grades how risky your clue is"; key only on the spymaster's phone; seeded by a code, no backend; measured computer accuracy.
 - $0, static GitHub Pages, no copyrighted art or rulebook text, Hub look.
+- Sound brief (2026-10-20): "add opptional sounds you can add to the games that reflect what's happening in the game accurately as well as win celebrations, and other fun annimations to go along with everything. Just make sure everything is customizable in the settings so the user can play as preffered."
+
+## Event → sound map (js/sfx.js)
+| Event | Sound | Animation |
+|---|---|---|
+| Clue given | stamp | clue word pops |
+| Own agent revealed | cardFlip, then ding | card pops, team count pops |
+| Bystander | cardFlip, then thud (custom) | (cover flip only) |
+| Other team's agent | cardFlip, then buzz (custom) | card shakes |
+| Assassin | cardFlip, then explosion | board shakes, card flashes red |
+| Two-player cover / penalty | cardFlip, then place | |
+| Turn passes (not to you) | whoosh (soft) | |
+| Becomes YOUR turn | turn chime | clue bar pulses |
+| Duet timer token | chip | "−1" floats off Turns left |
+| Duet sudden death | alarm | turns counter pulses |
+| 3 right on one clue | celebrate big | sparkles at the card |
+| Game over | celebrate win (team colours) / lose | confetti / dim |
+| Illegal move | error | |
+| Table tab | cardFlip + thud / place / ding (Duet agent) / explosion; Undo = cardSlide | |
+Others' and computer moves play at 0.85 volume. Card taps don't make the button "tap" click. Animations off also stops the cover flip; Fast halves it.
 
 ## Measured strength (tools/simulate.mjs, 300 games per row, official two-player rules, 2026-10-19)
 "Other mind" = GloVe 50d table standing in for a person who links words differently.
@@ -62,6 +83,8 @@ Phase 2 of the board-game wave is built: exact-rules play (classic, two-player, 
 - Risk-odds temperature T = 0.05 is not calibrated against real people.
 - Duet invalid-clue token penalty not implemented; the classic invalid-clue call is local Two teams only (not online).
 - Online with 3+ real people and host takeover (shared module's own tests cover takeover).
+- Sounds never heard: headless WebKit on Windows has no Web Audio; only the FX.play calls were checked. Confetti motion looks slow in headless (rAF throttled); real phone not checked.
+- Online sounds: driven by the same snapshot diff as local, but not run in a live two-browser room.
 
 ## Rejected / parked
 - ~~Board difficulty score~~ no decision depends on it.

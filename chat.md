@@ -17,3 +17,9 @@
 - **Built (CSS + small app.js render changes, no rule changes):** deeper spymaster tints with a 5px team edge (assassin edge red); cards have a printed-card thickness and sink 2px when pressed; heat bar moved to the top edge; clue bar tinted by the team whose turn it is, with a pulse while the computer thinks; panel no longer repeats "thinking" text; pass screen tinted by team (opaque); revealed covers show the word larger; laptop cards fill the height (about 3:2), bigger words, mirror word fainter; laptop setup in 2 columns; Links word chips bigger with whole-cell tap areas; phone slightly tighter so clue odds show without scrolling.
 - **Verified:** `node --test` 27/27; before/after WebKit shots of 11 states at 393 px and 1440 px (scratchpad `design/codenames/before|after`), zero console errors, no overflow.
 - **Open:** real iPhone look.
+
+## 2026-10-20 — sounds, celebrations, animations
+- **Asked:** manager brief (Tim: optional sounds that match the game, win celebrations, fun animations, all customizable in Settings).
+- **Built:** `js/fx.js` (shared, unchanged copy), `js/sfx.js` (diff of public views → sounds/animations/celebrations; custom thud + buzz), Settings → Sound & effects, error sound on illegal moves, Table-tab sounds, `.fx-still`/`.fx-fast` for the cover flip, `tests/fx.test.mjs`.
+- **Verified:** new test file failed first (module missing), now `node --test` 33/33; headless WebKit 393 px + 1440 px: You-guess game logged stamp, turn, cardFlip, buzz, whoosh, place; near-win click logged cardFlip, ding, celebrate win + confetti canvas; Animations off → no canvas, cover animation none; zero console errors, no overflow.
+- **Open:** hear it on a real iPhone; online room sounds not run live.

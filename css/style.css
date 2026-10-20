@@ -207,6 +207,22 @@ table.strength { width: 100%; border-collapse: collapse; font-size: 12.5px; marg
 table.strength th, table.strength td { padding: 4px 4px; text-align: right; border-bottom: 1px solid var(--line); }
 table.strength th:first-child, table.strength td:first-child { text-align: left; }
 table.strength th { color: var(--muted); font-weight: 600; }
+/* Sound & effects rows (js/fx.js), drawn like this site's own switches and segments */
+.fx-set .fx-row { border-top: 0; min-height: 0; }
+.fx-set .fx-lab { font-weight: 600; gap: 6px; }
+.fx-set .switch { position: relative; width: 40px; height: 24px; }
+.fx-set .switch span { background: #3a4157; border-radius: 12px; transition: background .2s; }
+.fx-set .switch span::after { top: 2px; left: 2px; transition: transform .2s; }
+.fx-set .switch input:checked + span { background: var(--accent); }
+.fx-set .switch input:checked + span::after { transform: translateX(16px); }
+.fx-set .seg { display: inline-flex; gap: 0; border-radius: 9px; padding: 2px; }
+.fx-set .seg button { padding: 5px 11px; border-radius: 7px; font-size: 13px; }
+.fx-set .seg button[aria-pressed="true"] { background: var(--card-hover); color: var(--text); box-shadow: 0 1px 2px rgba(0,0,0,.4); }
+.fx-set .q { width: 20px; height: 20px; font-size: 12px; }
+.fx-set .fx-test { min-height: 32px; border-radius: 9px; background: var(--card); }
+/* Animations off = covers appear at once; Fast = half-length flip */
+.fx-still .cover-tile { animation: none; }
+.fx-fast .cover-tile { animation-duration: .23s; }
 
 /* pass-the-phone cover, sheets, toast */
 .cover { position: fixed; inset: 0; z-index: 50; background: radial-gradient(circle at 50% 30%, #1d2233, var(--bg)); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; padding: 24px; text-align: center; }
