@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Codenames</title>
+<meta name="description" content="Codenames at the table or against the computer: seeded boards with a spymaster key, clue risk odds from word links, Duet, and online rooms.">
+<meta name="theme-color" content="#0f1117">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="stylesheet" href="css/style.css?v=1">
+</head>
+<body>
+<div id="app">
+  <header class="top">
+    <div class="brand">
+      <svg viewBox="0 0 32 32" aria-hidden="true"><rect x="2" y="2" width="8" height="8" rx="2" fill="#e5544b"/><rect x="12" y="2" width="8" height="8" rx="2" fill="#efe6cf"/><rect x="22" y="2" width="8" height="8" rx="2" fill="#4d8dff"/><rect x="2" y="12" width="8" height="8" rx="2" fill="#efe6cf"/><rect x="12" y="12" width="8" height="8" rx="2" fill="#14151b" stroke="#6b7086"/><rect x="22" y="12" width="8" height="8" rx="2" fill="#efe6cf"/><rect x="2" y="22" width="8" height="8" rx="2" fill="#4d8dff"/><rect x="12" y="22" width="8" height="8" rx="2" fill="#cdbb92"/><rect x="22" y="22" width="8" height="8" rx="2" fill="#e5544b"/></svg>
+      <span>Codenames</span>
+    </div>
+    <div id="topInfo"></div>
+  </header>
+
+  <main>
+    <section id="tab-table" class="tab"></section>
+    <section id="tab-play" class="tab"></section>
+    <section id="tab-links" class="tab"></section>
+    <section id="tab-settings" class="tab"></section>
+  </main>
+
+  <nav class="tabs" id="tabs" aria-label="Sections">
+    <button data-tab="table" aria-label="Table"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>Table</button>
+    <button data-tab="play" aria-label="Play"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M10 8.5l5 3.5-5 3.5z" fill="currentColor"/></svg>Play</button>
+    <button data-tab="links" aria-label="Links"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="5" cy="6" r="2.5"/><circle cx="19" cy="7" r="2.5"/><circle cx="12" cy="18" r="2.5"/><path d="M7.3 7l9.4.3M6.3 8.2l4.6 7.6M17.8 9.2l-4.6 6.6"/></svg>Links</button>
+    <button data-tab="settings" aria-label="Settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1"/></svg>Settings</button>
+  </nav>
+</div>
+<div id="layer"></div>
+<script type="module" src="js/app.js?v=1"></script>
+</body>
+</html>
