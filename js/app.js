@@ -5,7 +5,7 @@ import { game, setAssoc, setBoardWords, role, seatName } from './game.js';
 import './fx.js';
 import { createSfx } from './sfx.js';
 
-const BUILD = '2026-10-20.4';
+const BUILD = '2026-10-20.5';
 const LS = 'codenames:v1';
 const $ = (s, el = document) => el.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -64,7 +64,7 @@ const sfx = createSfx(FX, {
   tableBoard: () => document.querySelector('#tab-table .board'),
   cluebar: () => document.querySelector('#tab-play .cluebar'),
   clueWord: () => document.querySelector('#tab-play .cluebar .cw'),
-  count: t => document.querySelector(`#tab-play .counts span:nth-child(${t === 'B' ? 2 : 1})`),
+  count: t => document.querySelector(`#tab-play .astack.${t === 'B' ? 'B' : 'R'}`),
   timer: () => document.querySelector('#tab-play .turnline b'),
 });
 let tapAt = 0; // when this phone last made a move (its own sounds play at full volume)
@@ -101,31 +101,97 @@ function teamName(t) { return t === 'R' ? 'Red' : t === 'B' ? 'Blue' : t; }
 // red (bad) -> green (good). x in 0..1 where 1 = good
 function scaleColor(x) { x = Math.max(0, Math.min(1, x)); return `hsl(${Math.round(x * 130)} 70% 58%)`; }
 
+// ------------------------------------------------------------------ the real table (js/table.js + css/table.css)
+// A word card on the table: beige card, word on a white strip, the same word upside down on the
+// top half for the far side. Cards sit a hair askew (seeded, so they never move between renders);
+// revealed words get an agent / bystander / assassin card laid over them by hand.
+const T = window.TABLE;
+const jit = (seed, i, rot, off) => (T ? T.jitter(seed, i, { rot, off }) : { x: 0, y: 0, r: 0 });
 function cardHTML(p, word, o) {
-  // o: {tint, cover, coverWord, half, heat, pick, disabled}
+  // o: {tint, cover, half, heat, pick, disabled, seed, noAnim}
   const cls = ['card'];
   if (o.tint) cls.push('k-' + o.tint);
   if (o.pick) cls.push('pick');
   if (o.cover && o.half) cls.push('halfc');
-  let inner = `<span class="mirror">${esc(word)}</span><span class="w ${lenClass(word)}">${esc(word)}</span>`;
+  const j = jit(o.seed + ':w', p, 0.9, 1);
+  let inner = `<span class="wc"><span class="wtop"><i class="stamp"></i><span class="mirror">${esc(word)}</span></span><span class="strip"><span class="w ${lenClass(word)}">${esc(word)}</span></span></span>`;
   if (o.heat != null && !o.cover) inner += `<i class="heat" style="transform:scaleX(${o.heat.toFixed(3)})"></i>`;
-  if (o.cover) inner += `<span class="cover-tile c-${o.cover}${o.half ? ' half' : ''}${o.noAnim ? ' still' : ''}">${coverArt(o.cover)}${o.half ? `<span class="cw">${esc(o.half)}</span>` : `<span class="cw">${esc(word)}</span>`}</span>`;
-  return `<button class="${cls.join(' ')}" data-pos="${p}" ${o.disabled ? 'disabled' : ''} aria-label="${esc(word)}">${inner}</button>`;
+  if (o.cover) {
+    const c = jit(o.seed + ':c' + o.cover, p, o.half ? 2 : 3.2, 2.5);
+    inner += `<span class="cover-tile c-${o.cover}${o.half ? ' half' : ''}${o.noAnim ? ' still' : ' new'}" style="--cx:${c.x}px;--cy:${c.y}px;--cr:${c.r}deg">${coverArt(o.cover)}${o.half ? `<span class="cw">${esc(o.half)}</span>` : `<span class="cw">${esc(word)}</span>`}</span>`;
+  }
+  return `<button class="${cls.join(' ')}" data-pos="${p}" style="--jx:${j.x}px;--jy:${j.y}px;--jr:${j.r}deg;--d:${p};--dc:${2 - (p % 5)};--dr:${Math.floor(p / 5) + 1}" ${o.disabled ? 'disabled' : ''} aria-label="${esc(word)}">${inner}</button>`;
 }
 
 // Covers that were already showing don't flip again on every render.
 const seenCovers = new Map(); // boardKey -> Set(pos)
+let dealPending = false; // a fresh board: deal the 25 cards out from the word-card box once
 function boardHTML(key, words, optsFor) {
   const seen = seenCovers.get(key) || new Set();
+  const deal = dealPending && !seenCovers.has(key);
+  if (deal) dealPending = false;
   const html = words.map((w, p) => {
     const o = optsFor(p);
+    o.seed = key;
     if (o.cover && seen.has(p + o.cover + (o.half || ''))) o.noAnim = true;
     return cardHTML(p, w, o);
   }).join('');
   const now = new Set();
   words.forEach((w, p) => { const o = optsFor(p); if (o.cover) now.add(p + o.cover + (o.half || '')); });
   seenCovers.set(key, now);
-  return `<div class="board" data-board="${esc(key)}">${html}</div>`;
+  return `<div class="board${deal ? ' dealing' : ''}" data-board="${esc(key)}">${html}</div>`;
+}
+
+// A stack of agent cards (face up, like the box's red / blue piles): thicker with more cards left.
+// Inner bits are <i>/<b>, not spans, so sfx.js's ".counts span:nth-child(n)" still finds the stack.
+function stackHTML(color, n, label) {
+  const st = T ? T.stackShadow(n, { perCard: 0.7, max: 7 }) : { thickness: 0, shadow: '' };
+  return `<span class="astack ${color}${n ? '' : ' empty'}" title="${esc(label)}" aria-label="${esc(label)}"><i class="acard c-${color}" style="--tbl-stack:${st.shadow};--rise:${-st.thickness}px">${coverArt(color)}</i><b>${n}</b></span>`;
+}
+// The spymaster's key card standing in its holder: 5x5 squares, lights on the edges for who starts.
+function keyCardHTML(key, start) {
+  if (!key) return '';
+  const cells = key.map(k => `<i class="k${k || 'N'}"></i>`).join('');
+  return `<span class="keystand" aria-label="Key card"><span class="keycard${start ? ' s-' + start : ''}">${cells}</span></span>`;
+}
+// Name plates for the seats round the table (yours sits at your edge, the others across).
+function plateHTML(label, o = {}) {
+  return `<span class="tbl-plate plate${o.turn ? ' turn' : ''}${o.me ? ' me' : ''}">${o.team ? `<i class="dot ${o.team}"></i>` : ''}${esc(label)}${o.cpu ? ' ' + ART.robot.replace('<svg', '<svg class="cpu" aria-label="computer"') : ''}</span>`;
+}
+
+// New covers fly in from their team's stack (or drop onto the table when there is no stack),
+// then lie on the word: transform + opacity only, nothing in the layout moves.
+function flyCovers(root) {
+  const covers = root.querySelectorAll('.cover-tile.new');
+  if (!covers.length) return;
+  const on = T ? T.animOn() : false;
+  const fast = FX.settings.animSpeed === 'fast' ? 0.55 : 1;
+  covers.forEach((cv, i) => {
+    const color = (/\bc-([RBGNA])\b/.exec(cv.className) || [])[1];
+    const src = !cv.classList.contains('half') && root.querySelector(`.astack.${color} .acard`);
+    if (!on || !src || !cv.animate) return; // CSS "place" drop plays instead
+    const slot = cv.parentElement;
+    const a = src.getBoundingClientRect(), b = slot.getBoundingClientRect();
+    if (!a.width || !b.width) return;
+    const v = k => cv.style.getPropertyValue(k) || '0px';
+    const rest = `translate(${v('--cx')},${v('--cy')}) rotate(${cv.style.getPropertyValue('--cr') || '0deg'})`;
+    cv.classList.add('flying');
+    const g = cv.cloneNode(true);
+    g.classList.remove('new', 'flying'); g.classList.add('still', 'ghost');
+    g.style.cssText += `;position:fixed;inset:auto;left:${b.left}px;top:${b.top}px;width:${b.width}px;height:${b.height}px;margin:0;z-index:30;pointer-events:none`;
+    document.body.appendChild(g);
+    const dx = a.left + a.width / 2 - (b.left + b.width / 2), dy = a.top + a.height / 2 - (b.top + b.height / 2), s = a.width / b.width;
+    let anim;
+    try {
+      anim = g.animate([
+        { transform: `translate(${dx}px,${dy}px) scale(${s}) rotate(-8deg)`, boxShadow: '0 2px 4px rgba(0,0,0,.4)' },
+        { transform: `translate(${dx * 0.45}px,${dy * 0.45 - 26}px) scale(${(1 + s) / 2 * 1.12}) rotate(4deg)`, boxShadow: '0 18px 26px rgba(0,0,0,.45)', offset: 0.55 },
+        { transform: rest, boxShadow: '0 3px 6px rgba(0,0,0,.45)' },
+      ], { duration: Math.round(520 * fast), delay: i * 90, easing: 'cubic-bezier(.3,.7,.3,1)', fill: 'backwards' });
+    } catch (e) { g.remove(); cv.classList.remove('flying'); return; }
+    const done = () => { g.remove(); cv.classList.remove('flying'); };
+    anim.onfinish = done; anim.oncancel = done; setTimeout(done, 520 * fast + i * 90 + 300);
+  });
 }
 
 function stepper(ctx) {
@@ -228,7 +294,7 @@ function renderTable() {
     const found = t.marks.filter(m => m === 1).length;
     barHTML = `<button class="chip" data-act="code">${esc(t.code)} ${ART.pencil}</button>
       <div class="seg" role="group" aria-label="Your side">${['A', 'B'].map(s => `<button data-act="side" data-v="${s}" class="${t.side === s ? 'on' : ''}">Side ${s}</button>`).join('')}</div>
-      <span class="grow"></span><span class="counts"><span><i class="dot G"></i>${found}/15</span></span>`;
+      <span class="grow"></span><span class="counts">${stackHTML('G', 15 - found, `${15 - found} agents left`)}</span>`;
     const open = b.words.map((_, p) => t.marks[p] !== 1);
     const o = oddsBlock(b.words, b.key, open, 'G', draft.table.word, draft.table.n);
     heat = S.settings.heat ? o.heat : null;
@@ -239,7 +305,7 @@ function renderTable() {
     const c = { R: 0, B: 0 };
     b.key.forEach((k, p) => { if ((k === 'R' || k === 'B') && !t.revealed[p]) c[k]++; });
     barHTML = `<button class="chip" data-act="code" aria-label="Change board">${esc(t.code)} ${ART.pencil}</button>
-      <span class="counts" title="Agents left"><span><i class="dot R"></i>${c.R}</span><span><i class="dot B"></i>${c.B}</span></span>
+      <span class="counts" title="Agents left">${stackHTML('R', c.R, `Red: ${c.R} left`)}${stackHTML('B', c.B, `Blue: ${c.B} left`)}</span>
       <span class="grow"></span>
       <button class="switch ${t.spy ? 'on' : ''}" data-act="spy" aria-pressed="${t.spy}"><i></i>Spymaster</button>`;
     if (t.spy) {
@@ -267,9 +333,12 @@ function renderTable() {
     }
     return { tint: t.spy ? b.key[p] : null, cover: t.revealed[p] ? b.key[p] : null, heat: t.spy && heat ? heat.get(p) : null };
   });
+  const showKey = duet || t.spy;
+  const edge = showKey ? `<div class="myedge">${keyCardHTML(b.key, duet ? null : b.start)}</div>` : '';
   keepFocus(el, () => {
-    el.innerHTML = `<div class="stage"><div class="boardwrap"><div class="bar">${barHTML}</div>${bHTML}</div><div class="panel">${panel}</div></div>`;
+    el.innerHTML = `<div class="stage"><div class="boardwrap tbl-surface tbl-wood-dark"><div class="bar">${barHTML}</div>${bHTML}${edge}</div><div class="panel">${panel}</div></div>`;
   });
+  flyCovers(el);
 }
 
 // re-render without losing the caret in the clue box (the keyboard must not close on iPhone)
@@ -320,6 +389,7 @@ function codeSheet() {
       const code = E.normCode($('#codeIn', sh).value);
       if (!code) return toast('Use letters or digits');
       Object.assign(t, { code, variant, revealed: Array(25).fill(false), marks: Array(25).fill(0), order: [], team: null });
+      dealPending = true;
       draft.table.word = ''; draft.table.raw = undefined;
       save(); closeSheet(); renderAll();
     };
@@ -377,6 +447,7 @@ function startLocal(variant, seats, extra = {}) {
   const st = game.setup(seats.length, options, Math.random, seats.map(k => ({ kind: k })));
   S.play = { kind: 'local', variant, seats, state: st, lastSeat: null, shown: null, ratings: {}, hints: 0, ...extra };
   draft.play = { word: '', n: 1 };
+  dealPending = true;
   save(); renderAll(); scheduleBots();
 }
 
@@ -424,11 +495,26 @@ function renderPlay() {
   const boardIdx = pub.w.map(w => META.board.indexOf(w));
   const key = duet ? (mine.key || (over ? (myRole.side === 'A' ? pub.keyA : pub.keyB) : null)) : (mine.key || pub.key);
 
-  // ---- status line + clue banner
-  let status = '';
-  if (over) status = resultLine(pub, myRole);
-  else if (duet) status = `<span class="turnline">Turns left <b style="color:var(--text)">${pub.timer}</b> · Agents left <b style="color:var(--text)">${pub.left}</b></span>`;
-  else status = `<span class="counts"><span><i class="dot R"></i>${pub.counts.R}</span><span><i class="dot B"></i>${pub.counts.B}</span></span>`;
+  // ---- the table round the board: seats across, agent stacks either side of the clue slip, your edge
+  const stv = { variant: pub.variant, start: pub.start };
+  const seatTeam = i => (duet ? 'G' : role(stv, i).team);
+  const seatLabelOf = i => {
+    const s = snap.seats[i] || {};
+    return snap.mode === 'online' && s.kind === 'human' && s.name ? s.name : seatName(stv, i);
+  };
+  const across = (snap.seats || []).map((s, i) => (i === seat ? '' : plateHTML(seatLabelOf(i), { team: seatTeam(i), turn: !over && (snap.toAct || []).includes(i), cpu: s.kind === 'computer' }))).join('');
+  let leftStack, rightStack;
+  if (duet) {
+    const total = pub.startTimer || 9;
+    const toks = Array.from({ length: total }, (_, i) => `<i class="tok${i < pub.timer ? '' : ' used'}"></i>`).join('');
+    leftStack = `<span class="turnline" title="Turns left" aria-label="${pub.timer} turns left"><span class="toks">${toks}</span><b>${pub.timer}</b></span>`;
+    rightStack = `<span class="counts">${stackHTML('G', pub.left, `${pub.left} agents left`)}</span>`;
+  } else {
+    leftStack = `<span class="counts">${stackHTML('R', pub.counts.R, `Red: ${pub.counts.R} left`)}</span>`;
+    rightStack = `<span class="counts">${stackHTML('B', pub.counts.B, `Blue: ${pub.counts.B} left`)}</span>`;
+  }
+  const iAmSpy = duet ? seat >= 0 : roleFromPub(pub, seat).spy;
+  const myEdge = `<div class="myedge">${seat >= 0 ? plateHTML(seatLabel(pub, seat, snap), { team: seat >= 0 ? seatTeam(seat) : null, turn: myTurn && !over, me: true }) : ''}${iAmSpy && key && !over ? keyCardHTML(key, duet ? null : pub.start) : ''}</div>`;
   const turnTeam = duet ? null : pub.turn;
   const actorName = over ? '' : who(pub, snap);
   const thinking = !over && (snap.toAct || []).some(i => snap.seats[i]?.kind === 'computer');
@@ -494,8 +580,9 @@ function renderPlay() {
   panel += `<div class="row" style="margin-top:12px"><button class="btn small" data-act="quit">${over ? 'New game' : 'Quit game'}</button>${S.play.kind === 'online' ? `<span class="small muted">Room <b style="color:var(--warm)">${esc(snap.code)}</b></span>` : ''}</div>`;
 
   keepFocus(el, () => {
-    el.innerHTML = `<div class="stage"><div class="boardwrap"><div class="bar">${status}<span class="grow"></span>${seat >= 0 ? `<span class="chip">${esc(seatLabel(pub, seat, snap))}</span>` : ''}</div>${banner}${bHTML}</div><div class="panel">${panel}</div></div>`;
+    el.innerHTML = `<div class="stage"><div class="boardwrap tbl-surface tbl-wood-dark">${across ? `<div class="across">${across}</div>` : ''}<div class="slips">${leftStack}${banner}${rightStack}</div>${bHTML}${myEdge}</div><div class="panel">${panel}</div></div>`;
   });
+  flyCovers(el);
   fxCheck();
 }
 
