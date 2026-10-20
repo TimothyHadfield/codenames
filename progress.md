@@ -22,6 +22,7 @@ Phase 2 of the board-game wave is built: exact-rules play (classic, two-player, 
 | `docs/rules-check.md`, `docs/ideas.md` | Done |
 | Sound & effects (2026-10-20) | Done: shared `js/fx.js` (copied unchanged from `_fx/`) + `js/sfx.js` (event → sound from public-view diffs, so computer and online moves sound too), Settings → Sound & effects, win/lose/big celebrations |
 | Visual design pass (2026-10-20) | Done: deeper key tints + thicker edge, cards with thickness and a press-down, heat bar on the top edge, team-tinted clue bar (pulses while the computer thinks), team-tinted pass screen (opaque), laptop board fills the height, 2-column setup on laptop, bigger Links tap areas |
+| Table look (2026-10-20) | Done: dark-wood table (shared `_table` copied unchanged into `css/table.css` + `js/table.js`), 5×5 beige codename cards at the real ratio (68:44) with the upside-down word on top and the white word strip, agent cover cards dropped with slight jitter, red/blue (Duet: green) agent stacks with counts, the clue on a notepad slip, seat plates for others across the board, your plate + key card in a stand at your edge, a 7° board tilt, a deal-in on start, and the cover card flying from its stack. `fx.js` re-copied as 1.0.3 |
 
 ## Authorized next steps
 - 2026-10-19 (manager brief): finish phase 2, push, Pages live, QA pass. Nothing else authorized.
@@ -31,6 +32,8 @@ Phase 2 of the board-game wave is built: exact-rules play (classic, two-player, 
 - First brief: "Pass-the-phone play; computer clue-giver that grades how risky your clue is"; key only on the spymaster's phone; seeded by a code, no backend; measured computer accuracy.
 - $0, static GitHub Pages, no copyrighted art or rulebook text, Hub look.
 - Sound brief (2026-10-20): "add opptional sounds you can add to the games that reflect what's happening in the game accurately as well as win celebrations, and other fun annimations to go along with everything. Just make sure everything is customizable in the settings so the user can play as preffered."
+
+- Table-look brief (2026-10-20): "could you also make sure that each of the games also have a look to them so that the game (either board or card layout) looks almost identical to how the board or card layout looks like in real life, so it's easy to understand if you've already played it before, and also so it feels more like you're actually playing in real life rather than you're playing it online. Even things like how youre cards or other things are laid out infront of you, make it look like they are actual cards laid out similar to how it looks like in real life. Make the decks look like actual decks. Make the board have the same design as it does in real life with the same layouts. It should look kind of like you're looking through a camera that is connected to a user's glasses that is playing in real life (not actually, but the layout and style of everything should be similar)."
 
 ## Event → sound map (js/sfx.js)
 | Event | Sound | Animation |
@@ -67,6 +70,9 @@ Others' and computer moves play at 0.85 volume. Card taps don't make the button 
 - The computer's clue list is WordNet-filtered nouns (4,247 words) so it avoids "careful"-style clues; people may type any of the 9,119 words.
 - Never show or send a game's board seed (`s.code`) to players: a guesser could rebuild the key from it. Games make an 8-character secret seed; only the Table tab uses short shareable codes (that's its job).
 - The pass-the-phone cover must stay fully opaque (it hides the key). A semi-transparent tint leaked the key in the 10-20 design pass before it was caught.
+- Load `css/table.css` BEFORE `css/style.css`: table.css sets `--ink` on `:root`, and the app's own value must win. Don't edit `css/table.css`, `js/table.js` or `js/fx.js` (shared copies).
+- The flying cover's ghost uses `position:fixed` on `<body>`; `inset:auto` must come before `left/top` in its cssText, or it falls to the page bottom. `.board` has a perspective tilt, so never put fixed elements inside it.
+- Board grid needs `minmax(0,1fr)` + `.card{min-width:0}` + `.stage{min-width:0}`, or long words widen the page at 393 px.
 - The 403 from Firestore seen once in a headless run came from a request that retried; the room still worked on the next run. Watch for it.
 
 ## Decisions
@@ -84,6 +90,7 @@ Others' and computer moves play at 0.85 volume. Card taps don't make the button 
 - Duet invalid-clue token penalty not implemented; the classic invalid-clue call is local Two teams only (not online).
 - Online with 3+ real people and host takeover (shared module's own tests cover takeover).
 - Sounds never heard: headless WebKit on Windows has no Web Audio; only the FX.play calls were checked. Confetti motion looks slow in headless (rAF throttled); real phone not checked.
+- Table look on a real iPhone (notch, Safari toolbar) and in a live online room with real names on the seat plates; checked only in headless WebKit at 320/393/659-landscape/1280/1440.
 - Online sounds: driven by the same snapshot diff as local, but not run in a live two-browser room.
 
 ## Rejected / parked

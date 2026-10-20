@@ -23,3 +23,9 @@
 - **Built:** `js/fx.js` (shared, unchanged copy), `js/sfx.js` (diff of public views → sounds/animations/celebrations; custom thud + buzz), Settings → Sound & effects, error sound on illegal moves, Table-tab sounds, `.fx-still`/`.fx-fast` for the cover flip, `tests/fx.test.mjs`.
 - **Verified:** new test file failed first (module missing), now `node --test` 33/33; headless WebKit 393 px + 1440 px: You-guess game logged stamp, turn, cardFlip, buzz, whoosh, place; near-win click logged cardFlip, ding, celebrate win + confetti canvas; Animations off → no canvas, cover animation none; zero console errors, no overflow.
 - **Open:** hear it on a real iPhone; online room sounds not run live.
+
+## 2026-10-20 — table look (like the real game)
+- **Asked:** manager brief, Tim's words: the game should look "almost identical to how the board or card layout looks like in real life ... like you're looking through a camera that is connected to a user's glasses" (full quote in progress.md).
+- **Built (no rule changes):** dark-wood table from the shared `_table` kit; real-ratio beige codename cards with the upside-down word and the white strip; agent cover cards with jitter; R/B/G agent stacks with counts; notepad clue slip; seat plates across and yours at the bottom; key card in a stand at the spymaster's edge; 7° tilt; deal-in on start; cover card flies from its stack (drop for bystanders and assassin); `fx.js` 1.0.3. Research in the scratchpad `table/codenames/real.md`.
+- **Verified:** `node --test` 33/33; headless WebKit before/after shots of 7 states at 393×659 and 1440×900, plus checks at 320×568, 659×393 landscape and 1280×800: zero console errors, no page scroll, no horizontal overflow; motion script: deal class on start, ghost tracked from stack to slot, counts drop. Two read-only reviews; fixed clipped plates, slip overflow, long words, the flight landing over the nav bar.
+- **Open:** real iPhone; live online room with real names.
