@@ -202,7 +202,7 @@ export const STYLES = {
   // margin: how much closer the weakest target must be than any wrong word; raw: minimum
   // closeness; floor: minimum closeness above the clue's everyday closeness to all words.
   // Tuned 2026-10-19 with tools/simulate.mjs (numbers in progress.md).
-  safe:   { margin: 0.12, floor: 0.25, raw: 0.42, maxN: 3, assPad: 0.08, neuCut: 0 },
+  safe:   { margin: 0.09, floor: 0.21, raw: 0.35, maxN: 3, assPad: 0.08, neuCut: 0 },
   normal: { margin: 0.08, floor: 0.20, raw: 0.33, maxN: 4, assPad: 0.05, neuCut: 0 },
   bold:   { margin: 0.05, floor: 0.15, raw: 0.28, maxN: 5, assPad: 0.04, neuCut: 0 },
 };

@@ -89,7 +89,8 @@ main { min-height: 0; position: relative; }
 .cover-tile.c-G { background: linear-gradient(160deg, #4cc06d, #23803f); }
 .cover-tile.c-N { background: linear-gradient(160deg, #dccaa0, var(--tan-d)); color: #3a301c; }
 .cover-tile.c-A { background: radial-gradient(circle at 50% 40%, #2a2c36, #07080b); color: #ff6b5f; }
-.cover-tile.half { inset: auto 0 0 0; height: 45%; border-radius: 0 0 7px 7px; flex-direction: row; gap: 4px; }
+.card.halfc .w { transform: translateY(-75%); }
+.cover-tile.half { inset: auto 0 0 0; height: 36%; border-radius: 0 0 7px 7px; flex-direction: row; gap: 4px; }
 .cover-tile.half svg { width: 14px; height: 14px; }
 .cover-tile.still { animation: none; }
 @keyframes flip { from { transform: rotateX(-90deg); opacity: .3; } to { transform: rotateX(0); opacity: 1; } }

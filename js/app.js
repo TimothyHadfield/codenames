@@ -3,7 +3,7 @@
 import * as E from './engine.js';
 import { game, setAssoc, setBoardWords, role, seatName } from './game.js';
 
-const BUILD = '2026-10-19.1';
+const BUILD = '2026-10-19.2';
 const LS = 'codenames:v1';
 const $ = (s, el = document) => el.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -75,6 +75,7 @@ function cardHTML(p, word, o) {
   const cls = ['card'];
   if (o.tint) cls.push('k-' + o.tint);
   if (o.pick) cls.push('pick');
+  if (o.cover && o.half) cls.push('halfc');
   let inner = `<span class="mirror">${esc(word)}</span><span class="w ${lenClass(word)}">${esc(word)}</span>`;
   if (o.heat != null && !o.cover) inner += `<i class="heat" style="transform:scaleX(${o.heat.toFixed(3)})"></i>`;
   if (o.cover) inner += `<span class="cover-tile c-${o.cover}${o.half ? ' half' : ''}${o.noAnim ? ' still' : ''}">${coverArt(o.cover)}${o.half ? `<span class="cw">${esc(o.half)}</span>` : `<span class="cw">${esc(word)}</span>`}</span>`;
@@ -398,8 +399,8 @@ function renderPlay() {
   const turnTeam = duet ? null : pub.turn;
   const actorName = over ? '' : who(pub, snap);
   const banner = pub.clue
-    ? `<div class="cluebar"><span class="who">${duet ? 'Clue' : `<i class="dot ${turnTeam}"></i>`}</span><span class="cw">${esc(pub.clue.word)}</span><span class="cn">${pub.clue.n < 0 ? '∞' : pub.clue.n}</span>${!duet ? `<span class="who">${pub.guessesLeft >= 99 ? 'no limit' : pub.guessesLeft + ' left'}</span>` : ''}</div>`
-    : `<div class="cluebar"><span class="who">${esc(actorName)}</span></div>`;
+    ? `<div class="cluebar"><span class="who">${over ? 'Last clue' : duet ? 'Clue' : `<i class="dot ${turnTeam}"></i>`}</span><span class="cw">${esc(pub.clue.word)}</span><span class="cn">${pub.clue.n < 0 ? '∞' : pub.clue.n}</span>${!duet && !over ? `<span class="who">${pub.guessesLeft >= 99 ? 'no limit' : pub.guessesLeft + ' left'}</span>` : ''}</div>`
+    : `<div class="cluebar"><span class="who">${over ? 'Game over' : esc(actorName)}</span></div>`;
 
   // ---- what can I tap?
   let tapMode = null; // 'guess' | 'cover' | 'sd'
@@ -472,7 +473,7 @@ function roleFromPub(pub, seat) {
 function seatLabel(pub, seat, snap) {
   const st = { variant: pub.variant, start: pub.start };
   const base = seatName(st, seat);
-  return snap.seats.filter(s => s.kind === 'human').length > 1 || snap.mode === 'online' ? base : 'You: ' + base.toLowerCase();
+  return snap.seats.filter(s => s.kind === 'human').length > 1 || snap.mode === 'online' ? base : 'You: ' + (/^Player [AB]$/.test(base) ? base : base.toLowerCase());
 }
 function who(pub, snap) {
   const t = snap.toAct || [];

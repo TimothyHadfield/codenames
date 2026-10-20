@@ -233,6 +233,26 @@ export function createOnline({ game, gameId = game && game.id, config = FIREBASE
   };
   const fail = (e) => { lastError = humanError(e); ev.emit("error", lastError); changed(); return { ok: false, message: lastError }; };
 
+  // ------------------------------------------------------------ cleanup
+  /**
+   * Delete up to `per` expired docs from each collection, across all games.
+   * Firestore TTL needs billing, so the players' browsers do the sweeping.
+   * Runs at most once per 6 h per browser (on createRoom), ~6 reads + deletes.
+   */
+  async function sweep({ per = 25, force = false } = {}) {
+    const KEY = "online.sweptAt";
+    if (!force && Date.now() - (store.get(KEY) || 0) < 6 * 3600e3) return 0;
+    store.set(KEY, Date.now());
+    let n = 0;
+    for (const g of ["rooms", "hands", "host", "actions", "presence", "joins"]) {
+      try {
+        const snap = await F.getDocs(F.query(F.collectionGroup(db, g), F.where("expireAt", "<", F.Timestamp.now()), F.limit(per)));
+        for (const d of snap.docs) { try { await F.deleteDoc(d.ref); n++; } catch (e) {} }
+      } catch (e) { /* index still building, offline, … — try another day */ }
+    }
+    return n;
+  }
+
   // ------------------------------------------------------------ rooms
   async function createRoom({ name, seats = ["human", "empty"], options = {} } = {}) {
     try { await ready(); } catch (e) { return fail(e); }
@@ -256,6 +276,7 @@ export function createOnline({ game, gameId = game && game.id, config = FIREBASE
           });
         });
         await attach(c);
+        sweep().catch(() => {});
         return { ok: true, code: c };
       } catch (e) {
         if (String(e.message) !== "taken" && !String(e.code || "").includes("permission")) return fail(e);
@@ -628,8 +649,10 @@ export function createOnline({ game, gameId = game && game.id, config = FIREBASE
     try {
       needHost();
       const c = code;
-      const uids = room.seats.map((s) => s.uid).filter(Boolean);
+      // Everyone who ever got a hand (hv), not just who is seated now.
+      const uids = [...new Set(room.seats.map((s) => s.uid).filter(Boolean).concat(Object.keys(room.hv || {})))];
       stopHost();
+      stopTimers();
       for (const u of uids) await F.deleteDoc(F.doc(db, "games", gameId, "rooms", c, "hands", u)).catch(() => {});
       for (const sub of ["actions", "presence", "joins"]) {
         try { const s = await F.getDocs(F.collection(db, "games", gameId, "rooms", c, sub)); for (const d of s.docs) await F.deleteDoc(d.ref).catch(() => {}); } catch (e) {}
@@ -658,7 +681,7 @@ export function createOnline({ game, gameId = game && game.id, config = FIREBASE
   return {
     mode: "online",
     on: ev.on,
-    ready, createRoom, joinRoom, resume, setSeat, setOptions, start, act, leave, close,
+    ready, createRoom, joinRoom, resume, setSeat, setOptions, start, act, leave, close, sweep,
     view: snapshot,
     get uid() { return me; },
     get code() { return code; },
