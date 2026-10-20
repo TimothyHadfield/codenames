@@ -20,6 +20,7 @@ Phase 2 of the board-game wave is built: exact-rules play (classic, two-player, 
 | Links tab (connection map, word lookup) | Done |
 | Measured computer strength (Settings → How strong?) | Done, 300 games per row |
 | `docs/rules-check.md`, `docs/ideas.md` | Done |
+| Visual design pass (2026-10-20) | Done: deeper key tints + thicker edge, cards with thickness and a press-down, heat bar on the top edge, team-tinted clue bar (pulses while the computer thinks), team-tinted pass screen (opaque), laptop board fills the height, 2-column setup on laptop, bigger Links tap areas |
 
 ## Authorized next steps
 - 2026-10-19 (manager brief): finish phase 2, push, Pages live, QA pass. Nothing else authorized.
@@ -44,6 +45,7 @@ Phase 2 of the board-game wave is built: exact-rules play (classic, two-player, 
 - `js/engine.js` and `js/game.js` are imported without `?v=`; Pages caches 10 min, so a hard refresh may be needed right after a deploy.
 - The computer's clue list is WordNet-filtered nouns (4,247 words) so it avoids "careful"-style clues; people may type any of the 9,119 words.
 - Never show or send a game's board seed (`s.code`) to players: a guesser could rebuild the key from it. Games make an 8-character secret seed; only the Table tab uses short shareable codes (that's its job).
+- The pass-the-phone cover must stay fully opaque (it hides the key). A semi-transparent tint leaked the key in the 10-20 design pass before it was caught.
 - The 403 from Firestore seen once in a headless run came from a request that retried; the room still worked on the next run. Watch for it.
 
 ## Decisions
