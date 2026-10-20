@@ -42,7 +42,10 @@ export const game = {
   setup(n, options = {}, rng = Math.random, seats = []) {
     const variant = options.variant || 'classic';
     if (!BOARD_WORDS) throw new Error('Word list not loaded');
-    const code = E.normCode(options.code) || E.randomCode(rng);
+    // The seed stays in the host's state only: a short or public seed would let a guesser
+    // rebuild the key with genClassic/genDuet (QA 2026-10-19). 8 of A-Z0-9 covers the 32-bit seed space.
+    let code = E.normCode(options.code);
+    if (!code) { code = ''; for (let i = 0; i < 8; i++) code += 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'[Math.floor(rng() * 36)]; }
     const nW = BOARD_WORDS.length;
     let s;
     if (variant === 'duet') {
@@ -65,8 +68,12 @@ export const game = {
     if (s.variant === 'duet') {
       if (s.phase === 'clue') return [s.turn === 'A' ? 0 : 1];
       if (s.phase === 'guess') return [s.turn === 'A' ? 1 : 0];
-      const humans = [0, 1].filter(i => s.kinds[i] !== 'computer');
-      return humans.length ? humans : [0, 1];
+      // Sudden death: a guess by A is checked on B's side and vice versa, so a seat may point
+      // only while its partner's side still has agents. When both can, they take turns (A first).
+      const can = [0, 1].filter(i => E.duetSideLeft(s, i === 0 ? 'B' : 'A') > 0);
+      if (can.length < 2) return can;
+      const last = [...s.history].reverse().find(h => h.sudden);
+      return [last && last.guesser === 'A' ? 1 : 0];
     }
     if (s.phase === 'clue' || s.phase === 'penalty') return [spySeat(s, s.turn)];
     if (s.phase === 'guess') return opSeats(s, s.turn);
@@ -106,7 +113,7 @@ export const game = {
   publicView(s) {
     const over = s.phase === 'over';
     const v = {
-      variant: s.variant, code: s.code, n: s.n, w: s.w, phase: s.phase, turn: s.turn, clue: s.clue,
+      variant: s.variant, n: s.n, w: s.w, phase: s.phase, turn: s.turn, clue: s.clue,
       winner: s.winner, reason: s.reason, style: s.style, kinds: s.kinds,
       history: s.history.map(h => ({ ...h, targets: over ? h.targets : null })),
     };
@@ -182,7 +189,7 @@ function duetBot(s, seat, used) {
   const partnerClues = s.history.filter(h => h.giver && h.giver !== side).map(h => ASSOC.clueIndex(h.clue)).filter(c => c >= 0);
   let best = -1, bs = -1e9;
   for (let p = 0; p < 25; p++) {
-    if (s.found[p]) continue;
+    if (s.found[p] || s.byst[p].includes(side)) continue; // our earlier bystander there = not green on their side
     let v = 0;
     for (const c of partnerClues) v = Math.max(v, ASSOC.sim(s.words[p], c));
     if (myKey[p] === 'A') v -= 0.2;

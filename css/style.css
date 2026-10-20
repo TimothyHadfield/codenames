@@ -147,7 +147,9 @@ h3:first-child { margin-top: 2px; }
 
 /* clue banner in play */
 .cluebar { display: flex; align-items: center; justify-content: center; gap: 10px; height: 40px; border-radius: 10px; background: var(--card); flex-shrink: 0; font-weight: 800; letter-spacing: .05em; }
-.cluebar .cw { font-size: 19px; text-transform: uppercase; }
+.cluebar .cw { font-size: 19px; text-transform: uppercase; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Start stays in reach at the bottom of the setup panel, however long the options get */
+.go-row { position: sticky; bottom: -12px; margin-top: 14px; padding: 10px 0 12px; background: var(--bg); z-index: 2; }
 .cluebar .cn { background: var(--paper); color: var(--ink); border-radius: 6px; padding: 0 8px; font-size: 17px; }
 .cluebar .who { font-size: 12px; color: var(--muted); letter-spacing: 0; font-weight: 600; }
 .turnline { font-size: 13px; color: var(--muted); display: flex; gap: 6px; align-items: center; }

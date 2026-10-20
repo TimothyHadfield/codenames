@@ -87,6 +87,32 @@ test('secrecy: guessers and the public view never see unrevealed key colours', (
   assert.deepEqual(game.privateView(d, 1).key, d.keyB);
 });
 
+test('secrecy: the board seed never reaches the public view and is too long to guess (QA 2026-10-19)', () => {
+  for (const variant of ['classic', 'coop', 'duet']) {
+    const s = game.setup(SEATS[variant], { variant }, E.mulberry32(7), []);
+    const pub = game.publicView(s);
+    assert.ok(!('code' in pub), `${variant}: no seed in the public view`);
+    assert.ok(!JSON.stringify(pub).includes(s.code), `${variant}: seed text not in the public view`);
+    assert.ok(s.code.length >= 8, `${variant}: seed is not a short guessable code`);
+  }
+});
+
+test('duet sudden death: the player who can still find agents gets to point (QA 2026-10-19)', () => {
+  let s = game.setup(2, { variant: 'duet', code: 'SD1' }, E.mulberry32(3), [{ kind: 'human' }, { kind: 'computer' }]);
+  // leave only words that are green on A's side alone: only B (scored on A's key) can find them
+  s.found = s.keyA.map((a, p) => !(a === 'G' && s.keyB[p] !== 'G'));
+  s.phase = 'sudden'; s.timer = 0;
+  assert.deepEqual(game.toAct(s), [1]);
+  // and the other way round
+  s.found = s.keyB.map((b, p) => !(b === 'G' && s.keyA[p] !== 'G'));
+  assert.deepEqual(game.toAct(s), [0]);
+  // both have words left: they take turns, A first
+  s.found = Array(25).fill(false);
+  assert.deepEqual(game.toAct(s), [0]);
+  s.history.push({ sudden: true, guesser: 'A', guesses: [] });
+  assert.deepEqual(game.toAct(s), [1]);
+});
+
 test('only the right seat may act; bad clues are refused', () => {
   let s = game.setup(4, { variant: 'classic', code: 'TURN' }, Math.random, []);
   const spy = s.turn === 'R' ? 0 : 1, otherSpy = 1 - spy;

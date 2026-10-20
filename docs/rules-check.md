@@ -14,7 +14,7 @@ Sources:
 | 25 words in a 5x5 grid | S1 | `genClassic` | engine "9/8/7/1" |
 | Starting team has 9 agents, other 8, 7 bystanders, 1 assassin | S1, S3 | `genClassic` | engine "9/8/7/1" |
 | Spymaster gives one word plus one number | S1 | `apply` clue | engine "clue rules" |
-| Clue can't be a board word still showing, or part of / built from one | S1 | `checkClue`, `related` | engine "clue rules" |
+| Clue can't be a board word still showing, or part of / built from one | S1 | `checkClue`, `related` | engine "clue rules" (two tests: forms like making/MAKE refused, look-alikes like stay/STAR allowed). The site also refuses clues over 20 letters |
 | Up to number + 1 guesses | S1 | `guessesLeft = n + 1` | engine "n+1 guesses" |
 | Clue 0 or unlimited: no cap, but at least one guess is required | S1 | `guessesLeft = 99`, pass blocked before first guess | engine "0 and unlimited" |
 | Own agent: keep guessing. Bystander or other team's agent: turn ends | S1 | `apply` guess | engine + game random games |
@@ -36,6 +36,7 @@ Sources:
 | Bystander ends the turn and is marked for that guesser only | S2 | `applyDuet` | engine "Duet rules" |
 | When one player's 9 are found, the partner gives every remaining clue | S2 | `applyDuet` | engine "Duet rules" |
 | Tokens run out: sudden death, any wrong guess loses | S2 | `sdguess` | engine "sudden death" |
+| In sudden death either player may point; a guess is checked on the partner's side | S2 | `sdguess`, `game.toAct` | game "duet sudden death". The site lets a player point only while their partner's side still has agents, and alternates (A first) when both do, so pass-the-phone and computer partners always get their turn |
 | Assassin on the clue-giver's side: both lose | S2 | `applyDuet` | engine "Duet rules" |
 
 ## Known gaps / single-source

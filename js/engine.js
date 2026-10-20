@@ -130,17 +130,22 @@ export function related(a, b) {
   if (a === b) return true;
   const [s, l] = a.length <= b.length ? [a, b] : [b, a];
   if (s.length >= 3 && (l.startsWith(s) || l.endsWith(s))) return true;
-  // same stem: face / facing, bank / banking
+  // same stem with only word-ending changes: make / making, happy / happiness, story / stories.
+  // Look-alikes with different endings (star / stay, moon / mood) are fine.
   let k = 0;
   while (k < s.length && s[k] === l[k]) k++;
-  return k >= 3 && k >= s.length - 1;
+  if (k < 3) return false;
+  return ENDINGS.has(s.slice(k)) && ENDINGS.has(l.slice(k));
 }
+const ENDINGS = new Set(['', 's', 'es', 'e', 'ed', 'd', 'ing', 'er', 'ers', 'est', 'y', 'ies', 'ied', 'ier', 'iest',
+  'ily', 'iness', 'ness', 'ly', 'en', 'ment', 'ments', 'ion', 'ions', 'ation', 'al', 'ful', 'less', 'ish']);
 
 // boardWords: the 25 words on the table (strings). Returns {ok, reason}
 export function checkClue(word, boardWords) {
   const w = String(word || '').trim().toLowerCase();
   if (!w) return { ok: false, reason: 'Type a clue' };
   if (/\s/.test(w)) return { ok: false, reason: 'One word only' };
+  if (w.length > 20) return { ok: false, reason: 'Too long' };
   if (!/^[a-z][a-z'-]*$/.test(w)) return { ok: false, reason: 'Letters only' };
   for (const b of boardWords) {
     if (b === w) return { ok: false, reason: `${b.toUpperCase()} is on the board` };

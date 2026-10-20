@@ -3,7 +3,7 @@
 import * as E from './engine.js';
 import { game, setAssoc, setBoardWords, role, seatName } from './game.js';
 
-const BUILD = '2026-10-19.2';
+const BUILD = '2026-10-20.1';
 const LS = 'codenames:v1';
 const $ = (s, el = document) => el.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -103,7 +103,7 @@ function stepper(ctx) {
 }
 
 function clueInput(ctx, placeholder) {
-  return `<div class="clue-in"><input id="clue-${ctx}" data-ctx="${ctx}" placeholder="${placeholder}" value="${esc(draft[ctx].word)}" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="done" aria-label="Clue">${stepper(ctx)}</div>`;
+  return `<div class="clue-in"><input id="clue-${ctx}" data-ctx="${ctx}" placeholder="${placeholder}" value="${esc(draft[ctx].raw ?? draft[ctx].word)}" maxlength="24" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="done" aria-label="Clue">${stepper(ctx)}</div>`;
 }
 
 // items for the odds: unrevealed words with their colour as the clue team sees it
@@ -285,9 +285,9 @@ function codeSheet() {
     $('#cancel', sh).onclick = closeSheet;
     $('#go', sh).onclick = () => {
       const code = E.normCode($('#codeIn', sh).value);
-      if (!code) return;
+      if (!code) return toast('Use letters or digits');
       Object.assign(t, { code, variant, revealed: Array(25).fill(false), marks: Array(25).fill(0), order: [], team: null });
-      draft.table.word = '';
+      draft.table.word = ''; draft.table.raw = undefined;
       save(); closeSheet(); renderAll();
     };
   });
@@ -340,7 +340,7 @@ function stopGame() { gen++; clearTimeout(botTimer); botTimer = null; hint = nul
 
 function startLocal(variant, seats, extra = {}) {
   stopGame();
-  const options = { variant, code: E.randomCode(), style: S.settings.style, timer: S.settings.duetTimer };
+  const options = { variant, style: S.settings.style, timer: S.settings.duetTimer };
   const st = game.setup(seats.length, options, Math.random, seats.map(k => ({ kind: k })));
   S.play = { kind: 'local', variant, seats, state: st, lastSeat: null, shown: null, ratings: {}, hints: 0, ...extra };
   draft.play = { word: '', n: 1 };
@@ -416,7 +416,7 @@ function renderPlay() {
     odds = oddsBlock(boardIdx, key, open, duet ? 'G' : pub.turn, draft.play.word, draft.play.n);
   }
   const heat = odds && S.settings.heat ? odds.heat : null;
-  const boardKey = `p:${pub.code}:${pub.variant}`;
+  const boardKey = `p:${pub.w.join(',')}:${pub.variant}`;
   const coverTeam = pub.phase === 'dummy' ? (pub.turn) : pub.turn;
   const bHTML = boardHTML(boardKey, pub.w, p => {
     let cover = null, half = null, tint = null, disabled = true, pick = false;
@@ -443,8 +443,8 @@ function renderPlay() {
   let panel = '';
   if (over) panel = reviewHTML(pub, myRole);
   else if (iGive) {
-    panel = `<h3>Your clue</h3>${clueInput('play', 'One word')}${S.settings.odds ? odds.html : (odds.bad ? odds.html : '')}
-      <div class="row" style="margin-top:10px"><button class="btn main" data-act="give" ${!draft.play.word || odds?.bad ? 'disabled' : ''}>Give clue</button><button class="btn" data-act="idea" data-ctx="play">${ART.robot.replace('<svg', '<svg width="16" height="16"')}Idea</button></div>`;
+    panel = `<h3>Your clue</h3>${clueInput('play', 'One word')}
+      <div class="row" style="margin-top:10px"><button class="btn main" data-act="give" ${!draft.play.word || odds?.bad ? 'disabled' : ''}>Give clue</button><button class="btn" data-act="idea" data-ctx="play">${ART.robot.replace('<svg', '<svg width="16" height="16"')}Idea</button></div>${S.settings.odds ? odds.html : (odds.bad ? odds.html : '')}`;
   } else if (tapMode === 'guess') {
     panel = `<div class="row"><b>Tap a word</b><span class="grow"></span>${pub.guessesMade > 0 ? '<button class="btn" data-act="pass">End turn</button>' : ''}<button class="btn" data-act="hint" ${ASSOC ? '' : 'disabled'}>Hint</button></div>${hintHTML(pub, boardIdx)}`;
   } else if (tapMode === 'cover') {
@@ -456,7 +456,7 @@ function renderPlay() {
     panel = `<div class="row muted"><span>${esc(actorName)}</span></div>`;
   }
   panel += logHTML(pub, boardIdx);
-  panel += `<div class="row" style="margin-top:12px"><button class="btn small" data-act="quit">${over ? 'New game' : 'Quit game'}</button>${S.play.kind === 'online' ? `<span class="small muted">Room <b style="color:var(--warm)">${esc(snap.code)}</b></span>` : `<span class="small muted">Board ${esc(pub.code)}</span>`}</div>`;
+  panel += `<div class="row" style="margin-top:12px"><button class="btn small" data-act="quit">${over ? 'New game' : 'Quit game'}</button>${S.play.kind === 'online' ? `<span class="small muted">Room <b style="color:var(--warm)">${esc(snap.code)}</b></span>` : ''}</div>`;
 
   keepFocus(el, () => {
     el.innerHTML = `<div class="stage"><div class="boardwrap"><div class="bar">${status}<span class="grow"></span>${seat >= 0 ? `<span class="chip">${esc(seatLabel(pub, seat, snap))}</span>` : ''}</div>${banner}${bHTML}</div><div class="panel">${panel}</div></div>`;
@@ -517,7 +517,7 @@ function logHTML(pub, boardIdx) {
 
 function reviewHTML(pub, myRole) {
   let html = `<div class="result">${resultLine(pub, myRole)}`;
-  if (pub.variant === 'duet') html += `<p class="small muted">${pub.left} agents left · ${pub.timer} turns left</p>`;
+  if (pub.variant === 'duet') html += `<p class="small muted">${pub.left} agent${pub.left === 1 ? '' : 's'} left · ${pub.timer} turn${pub.timer === 1 ? '' : 's'} left</p>`;
   html += `</div>`;
   // study: how good was each human clue at the time it was given (local games only)
   const rs = S.play.kind === 'local' ? S.play.ratings : {};
@@ -560,7 +560,7 @@ function renderSetup(el) {
       ${opt('online', ART.globe, 'Online room', 'Friends join with a code')}
     </div>
     ${extra}
-    ${su.pick !== 'online' ? `<div class="row" style="margin-top:14px"><button class="btn main" data-act="start" ${ASSOC ? '' : 'disabled'}>${ASSOC ? 'Start' : 'Loading word links…'}</button>
+    ${su.pick !== 'online' ? `<div class="row go-row"><button class="btn main" data-act="start" ${ASSOC ? '' : 'disabled'}>${ASSOC ? 'Start' : 'Loading word links…'}</button>
       ${su.pick === 'guess' || su.pick === 'give' ? '<span class="small muted">Two-player rules <button class="q" data-help="coop">?</button></span>' : ''}</div>` : ''}
   </div></div>`;
 }
@@ -608,7 +608,7 @@ async function onlineCreate() {
   const seats = Array(n).fill('empty'); seats[0] = 'human';
   const o = await ensureOnline();
   toast('Making a room…');
-  const r = await o.createRoom({ name, seats, options: { variant: su.onlineVariant, code: E.randomCode(), style: S.settings.style, timer: S.settings.duetTimer } });
+  const r = await o.createRoom({ name, seats, options: { variant: su.onlineVariant, style: S.settings.style, timer: S.settings.duetTimer } });
   if (!r.ok) return toast(r.message);
   stopGame();
   S.play = { kind: 'online' }; save(); renderAll();
@@ -643,7 +643,7 @@ function renderOnlineLobby(el, snap) {
 // ------------------------------------------------------------------ LINKS tab
 const links = { word: '', sel: null };
 function linksBoard() {
-  if (S.play && S.play.kind === 'local') { const st = S.play.state; return { idx: st.words, code: st.code, from: 'game' }; }
+  if (S.play && S.play.kind === 'local') { const st = S.play.state; return { idx: st.words, code: '', from: 'game' }; }
   const b = tableBoard();
   return { idx: b.words, code: S.table.code, from: 'table' };
 }
@@ -696,7 +696,7 @@ function renderLinks() {
     }
   }
   keepFocus(el, () => {
-    el.innerHTML = `<div class="stage"><div class="boardwrap"><div class="bar"><span class="chip">${b.from === 'game' ? 'Game' : 'Table'} ${esc(b.code)}</span><input id="linkWord" class="grow" style="height:36px;border-radius:9px;border:1px solid var(--line);background:var(--bg-soft);padding:0 10px;outline:none" placeholder="Any word…" value="${esc(links.word)}" autocomplete="off" autocapitalize="off" aria-label="Look up a word"></div>${mapHTML}</div><div class="panel">${side}</div></div>`;
+    el.innerHTML = `<div class="stage"><div class="boardwrap"><div class="bar"><span class="chip">${b.from === 'game' ? 'This game' : 'Table ' + esc(b.code)}</span><input id="linkWord" class="grow" style="height:36px;border-radius:9px;border:1px solid var(--line);background:var(--bg-soft);padding:0 10px;outline:none" placeholder="Any word…" value="${esc(links.word)}" autocomplete="off" autocapitalize="off" aria-label="Look up a word"></div>${mapHTML}</div><div class="panel">${side}</div></div>`;
   });
 }
 
@@ -731,6 +731,7 @@ function renderTop() {
   else t.innerHTML = '';
 }
 function renderAll() {
+  if (S.tab !== 'play') $('#layer .cover')?.remove(); // pass-the-phone cover belongs to Play only; it comes back there
   document.querySelectorAll('.tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === S.tab));
   document.querySelectorAll('.tab').forEach(s => s.classList.toggle('on', s.id === 'tab-' + S.tab));
   renderTop();
@@ -833,7 +834,10 @@ document.addEventListener('click', e => {
 
 document.addEventListener('input', e => {
   if (e.target.id === 'clue-table' || e.target.id === 'clue-play') {
-    draft[e.target.dataset.ctx].word = e.target.value.trim().toLowerCase().replace(/[‘’]/g, "'");
+    // keep what was typed (spaces too) in the box; the trimmed word drives the odds and checks
+    const d = draft[e.target.dataset.ctx];
+    d.raw = e.target.value.replace(/^\s+/, '');
+    d.word = d.raw.trim().toLowerCase().replace(/[‘’]/g, "'");
     if (e.target.id === 'clue-table') renderTable(); else renderPlay();
   } else if (e.target.id === 'linkWord') {
     links.word = e.target.value.trim().toLowerCase();
@@ -869,7 +873,7 @@ function idea(ctx) {
     } else c = E.bestClue(ASSOC, { words: idx, key }, pub.revealed, pub.turn, S.settings.style);
   }
   if (!c) return toast('No agents left to clue');
-  draft[ctx].word = c.clue; draft[ctx].n = c.n;
+  draft[ctx].word = c.clue; draft[ctx].raw = undefined; draft[ctx].n = c.n;
   renderAll();
 }
 

@@ -59,14 +59,14 @@
    "wpc": 2.07,
    "win": 90,
    "ass": 6,
-   "score": 3.3,
-   "turns": 5.2
+   "score": 3.4,
+   "turns": 5.1
   },
   {
    "who": "same-mind",
    "style": "bold",
    "right": 100,
-   "wpc": 1.7,
+   "wpc": 1.71,
    "win": 100,
    "ass": 0,
    "score": 3.7,
@@ -87,7 +87,7 @@
    "style": "bold",
    "right": 81,
    "wpc": 2.53,
-   "win": 87,
+   "win": 86,
    "ass": 10,
    "score": 3.5,
    "turns": 4.8

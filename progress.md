@@ -1,7 +1,7 @@
 # Codenames — progress
 
 ## START HERE
-Read this file, then `CLAUDE.md`, then the last entry of `chat.md`. Last updated: 2026-10-19.
+Read this file, then `CLAUDE.md`, then the last entry of `chat.md`. Last updated: 2026-10-20.
 
 Live: https://timothyhadfield.github.io/codenames/ · Repo: https://github.com/TimothyHadfield/codenames
 
@@ -43,6 +43,7 @@ Phase 2 of the board-game wave is built: exact-rules play (classic, two-player, 
 - Port 8231 is used by other agents' servers; this project used 8673 for local checks.
 - `js/engine.js` and `js/game.js` are imported without `?v=`; Pages caches 10 min, so a hard refresh may be needed right after a deploy.
 - The computer's clue list is WordNet-filtered nouns (4,247 words) so it avoids "careful"-style clues; people may type any of the 9,119 words.
+- Never show or send a game's board seed (`s.code`) to players: a guesser could rebuild the key from it. Games make an 8-character secret seed; only the Table tab uses short shareable codes (that's its job).
 - The 403 from Firestore seen once in a headless run came from a request that retried; the room still worked on the next run. Watch for it.
 
 ## Decisions
@@ -51,6 +52,8 @@ Phase 2 of the board-game wave is built: exact-rules play (classic, two-player, 
 - Two-player rules for solo modes (pretend opponent covers one agent per turn); score = their agents left.
 - Infinity/0 clues stored as a 99 guess cap (JSON-safe).
 - Safe style loosened 2026-10-19 (was 45% wins, now 79%).
+- Duet sudden death: a player may point only while the partner's side has agents; alternate when both can (2026-10-20, after QA found an unwinnable case).
+- Clue "same stem" rule = shared start of 3+ letters and both endings are plain word endings (s, ed, ing, y/ies...), so stay/STAR is allowed and making/MAKE is not.
 
 ## NOT verified
 - Real iPhone (only WebKit at 393 px).

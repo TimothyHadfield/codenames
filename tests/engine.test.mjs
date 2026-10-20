@@ -77,6 +77,14 @@ test('clue rules: board words, forms of board words and two words are refused', 
   assert.equal(E.checkClue('money', board).ok, true);
 });
 
+test('clue rules: word forms are refused, look-alike words are not (QA 2026-10-19)', () => {
+  for (const [a, b] of [['making', 'make'], ['baked', 'bake'], ['faces', 'face'], ['happiness', 'happy'], ['stories', 'story'], ['banking', 'bank'], ['runner', 'run']])
+    assert.equal(E.related(a, b), true, `${a} is a form of ${b}`);
+  for (const [a, b] of [['stay', 'star'], ['mood', 'moon'], ['hang', 'hand'], ['bear', 'bean'], ['seahorse', 'seal']])
+    assert.equal(E.related(a, b), false, `${a} is not a form of ${b}`);
+  assert.equal(E.checkClue('a'.repeat(30), ['apple']).ok, false, 'very long clues are refused');
+});
+
 // brute force: enumerate every guess order with the softmax chances, compare to riskOfClue
 function bruteRisk(items, team, n, T) {
   const out = { assassin: 0, opponent: 0, neutral: 0, allRight: 0, expRight: 0 };
