@@ -27,6 +27,15 @@ export function seatName(s, seat) {
   if (s.variant === 'coop') return r.spy ? 'Spymaster' : 'Guesser';
   return (r.team === 'R' ? 'Red ' : 'Blue ') + (r.spy ? 'spymaster' : 'guesser');
 }
+// Words a clue may not echo: only those still showing. The rulebook bars a visible word and its
+// forms "until it is covered"; Duet's green cards cover a word, its bystander cards do not.
+export function visibleWords(s) {
+  return s.w.filter((w, p) => (s.variant === 'duet' ? !s.found[p] : !s.revealed[p]));
+}
+// A state the computer can choose from, built from what this seat sees (online "Pick for me").
+export function stateFromViews(pub, mine = {}) {
+  return { ...pub, key: mine.key || pub.key, words: pub.w.map(w => BOARD_WORDS.indexOf(w)), used: [] };
+}
 const spySeat = (s, team) => (s.variant === 'coop' ? 0 : team === 'R' ? 0 : 1);
 const opSeats = (s, team) => {
   const out = [];
@@ -87,7 +96,7 @@ export const game = {
     if (s.variant === 'duet') {
       const side = role(s, seat).side;
       if (a.type === 'clue') {
-        const chk = E.checkClue(a.word, s.w);
+        const chk = E.checkClue(a.word, visibleWords(s));
         if (!chk.ok) throw new Error(chk.reason);
         s = E.applyDuet(s, { type: 'clue', team: side, word: a.word, n: a.n, targets: a.targets });
         s.used.push(String(a.word).toLowerCase());
@@ -99,7 +108,7 @@ export const game = {
     }
     const team = s.turn;
     if (a.type === 'clue') {
-      const chk = E.checkClue(a.word, s.w);
+      const chk = E.checkClue(a.word, visibleWords(s));
       if (!chk.ok) throw new Error(chk.reason);
       s = E.apply(s, { type: 'clue', team, word: a.word, n: a.n, targets: a.targets });
       s.used.push(String(a.word).toLowerCase());

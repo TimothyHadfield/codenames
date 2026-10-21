@@ -1,11 +1,11 @@
 // Codenames site: Table (real-table companion), Play (computer / pass-the-phone / online),
 // Links (word connections explorer), Settings. Rules live in engine.js + game.js.
 import * as E from './engine.js';
-import { game, setAssoc, setBoardWords, role, seatName } from './game.js';
+import { game, setAssoc, setBoardWords, role, seatName, stateFromViews } from './game.js?v=8'; // ?v: Pages caches modules 10 min; a stale game.js would miss new exports
 import './fx.js';
 import { createSfx } from './sfx.js';
 
-const BUILD = '2026-10-20.5';
+const BUILD = '2026-10-20.6';
 const LS = 'codenames:v1';
 const $ = (s, el = document) => el.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -47,7 +47,7 @@ function save() { try { localStorage.setItem(LS, JSON.stringify(S)); } catch (e)
 // drafts (not saved): clue being typed
 const draft = { table: { word: '', n: 1 }, play: { word: '', n: 1 } };
 let META = null, ASSOC = null, assocErr = null;
-let gen = 0, botTimer = null, online = null, osnap = null, hint = null;
+let gen = 0, botTimer = null, online = null, osnap = null, hint = null, actBusy = false, roomBusy = false;
 
 // ------------------------------------------------------------------ sound & effects (js/fx.js + js/sfx.js)
 const FX = window.FX;
@@ -156,7 +156,7 @@ function keyCardHTML(key, start) {
 }
 // Name plates for the seats round the table (yours sits at your edge, the others across).
 function plateHTML(label, o = {}) {
-  return `<span class="tbl-plate plate${o.turn ? ' turn' : ''}${o.me ? ' me' : ''}">${o.team ? `<i class="dot ${o.team}"></i>` : ''}${esc(label)}${o.cpu ? ' ' + ART.robot.replace('<svg', '<svg class="cpu" aria-label="computer"') : ''}</span>`;
+  return `<span class="tbl-plate plate${o.turn ? ' turn' : ''}${o.me ? ' me' : ''}">${o.team ? `<i class="dot ${o.team}"></i>` : ''}<span class="pn">${esc(label)}</span>${o.cpu ? ' ' + ART.robot.replace('<svg', '<svg class="cpu" aria-label="computer"') : ''}</span>`;
 }
 
 // New covers fly in from their team's stack (or drop onto the table when there is no stack),
@@ -213,7 +213,8 @@ function riskItems(words, key, open, clueIdx) {
 // odds + nearest words for a clue. Returns {html, heat: Map(pos -> 0..1)}
 function oddsBlock(boardIdx, key, open, team, word, n, opts = {}) {
   if (!word) return { html: `<div class="msg">${esc(opts.empty || 'Type a clue to see how risky it is.')}</div>`, heat: null };
-  const chk = E.checkClue(word, wordsOf(boardIdx));
+  // only words still showing are off limits (a covered word may be said: rulebook)
+  const chk = E.checkClue(word, wordsOf(boardIdx).filter((w, p) => !opts.covered || !opts.covered[p]));
   if (!chk.ok) return { html: `<div class="msg bad">${esc(chk.reason)}</div>`, heat: null, bad: true };
   if (!ASSOC) return { html: `<div class="msg">${assocErr ? 'Word links failed to load.' : 'Loading word links…'}</div>`, heat: null };
   const c = ASSOC.clueIndex(word);
@@ -296,7 +297,7 @@ function renderTable() {
       <div class="seg" role="group" aria-label="Your side">${['A', 'B'].map(s => `<button data-act="side" data-v="${s}" class="${t.side === s ? 'on' : ''}">Side ${s}</button>`).join('')}</div>
       <span class="grow"></span><span class="counts">${stackHTML('G', 15 - found, `${15 - found} agents left`)}</span>`;
     const open = b.words.map((_, p) => t.marks[p] !== 1);
-    const o = oddsBlock(b.words, b.key, open, 'G', draft.table.word, draft.table.n);
+    const o = oddsBlock(b.words, b.key, open, 'G', draft.table.word, draft.table.n, { covered: t.marks.map(m => m === 1) });
     heat = S.settings.heat ? o.heat : null;
     panel = `<h3>Check a clue</h3>${clueInput(ctx, 'Your clue')}${S.settings.odds ? o.html : ''}
       <div class="row" style="margin-top:8px"><button class="btn small" data-act="idea" data-ctx="table">${ART.robot.replace('<svg', '<svg width="16" height="16"')}Idea</button><button class="btn small" data-act="table-undo" ${t.order.length ? '' : 'disabled'}>Undo</button></div>
@@ -311,7 +312,7 @@ function renderTable() {
     if (t.spy) {
       const team = t.team || b.start;
       const open = t.revealed.map(r => !r);
-      const o = oddsBlock(b.words, b.key, open, team, draft.table.word, draft.table.n);
+      const o = oddsBlock(b.words, b.key, open, team, draft.table.word, draft.table.n, { covered: t.revealed });
       heat = S.settings.heat ? o.heat : null;
       panel = `<div class="row" style="justify-content:space-between"><h3 style="margin:0">Check a clue</h3>
         <div class="seg" role="group" aria-label="Clue for">${['R', 'B'].map(x => `<button data-act="team" data-v="${x}" class="${team === x ? 'on' : ''}">${teamName(x)}</button>`).join('')}</div></div>
@@ -422,6 +423,9 @@ function scheduleBots() {
   if (!S.play || S.play.kind !== 'local' || !ASSOC) return;
   const P = S.play, st = P.state;
   if (botTimer || game.isOver(st)) return;
+  // a hidden tab waits: with the game open in two tabs only the one you look at moves the computer
+  // (the other follows through the storage event), and moves don't happen unseen in the background
+  if (document.hidden) return;
   const bots = game.toAct(st).filter(i => P.seats[i] === 'computer');
   if (!bots.length) return;
   const myGen = gen;
@@ -459,7 +463,10 @@ function currentSnap() {
 function act(action) {
   hint = null; tapAt = Date.now();
   if (S.play.kind === 'online') {
-    online.act(action).then(r => { if (!r.ok) { FX.play('error'); toast(r.message); } });
+    // a second tap before the room answers would be refused ("Pick a covered word"): ignore it
+    if (actBusy) return false;
+    actBusy = true;
+    online.act(action).then(r => { if (!r.ok) { FX.play('error'); toast(r.message); } }, () => toast('No connection. Try again.')).finally(() => { actBusy = false; });
     return true;
   }
   const snap = localSnap();
@@ -534,7 +541,7 @@ function renderPlay() {
   let odds = null;
   if (iGive && key) {
     const open = duet ? pub.found.map((f, p) => !f && !pub.byst[p].includes(myRole.side === 'A' ? 'B' : 'A')) : pub.revealed.map(r => !r);
-    odds = oddsBlock(boardIdx, key, open, duet ? 'G' : pub.turn, draft.play.word, draft.play.n);
+    odds = oddsBlock(boardIdx, key, open, duet ? 'G' : pub.turn, draft.play.word, draft.play.n, { covered: duet ? pub.found : pub.revealed });
   }
   const heat = odds && S.settings.heat ? odds.heat : null;
   const boardKey = `p:${pub.w.join(',')}:${pub.variant}`;
@@ -582,6 +589,12 @@ function renderPlay() {
   keepFocus(el, () => {
     el.innerHTML = `<div class="stage"><div class="boardwrap tbl-surface tbl-wood-dark">${across ? `<div class="across">${across}</div>` : ''}<div class="slips">${leftStack}${banner}${rightStack}</div>${bHTML}${myEdge}</div><div class="panel">${panel}</div></div>`;
   });
+  // many seats (online rooms go up to 10): the row of plates scrolls, so keep whoever is to act in view
+  const row = el.querySelector('.across'), tp = row && row.querySelector('.plate.turn');
+  if (tp && row.scrollWidth > row.clientWidth) {
+    const a = row.getBoundingClientRect(), b = tp.getBoundingClientRect();
+    row.scrollLeft += b.left + b.width / 2 - (a.left + a.width / 2);
+  }
   flyCovers(el);
   fxCheck();
 }
@@ -607,14 +620,24 @@ function who(pub, snap) {
   const name = snap.seats[s]?.name;
   const label = pub.variant === 'coop' && pub.phase === 'dummy' ? 'Spymaster covers one of theirs' : seatName(st, s);
   if (kind === 'computer') return `Computer (${label.toLowerCase()}) is thinking…`;
-  if (snap.mode === 'online' && !snap.myTurn) return `Waiting for ${name || label}`;
-  return label;
+  if (pub.phase === 'dummy') return label;
+  // what the seat to act is doing, so the slip reads as a sentence, not a bare seat name
+  const doing = pub.phase === 'clue' ? 'give a clue' : pub.phase === 'penalty' ? 'cover one of yours' : '';
+  if (snap.mode === 'online' && !snap.myTurn) return pub.phase === 'clue' ? `${name || label} is giving a clue` : `Waiting for ${name || label}`;
+  const solo = snap.mode === 'online' || snap.seats.filter(x => x.kind === 'human').length < 2;
+  if (pub.phase === 'sudden') return solo ? 'Sudden death: your pick' : `Sudden death: ${label} picks`;
+  if (!doing) return label;
+  return solo ? `Your turn: ${doing}` : `${label}: ${doing}`;
 }
 function resultLine(pub, myRole) {
-  if (pub.variant === 'duet') return `<b>${pub.winner ? 'You both win!' : pub.reason === 'assassin' ? 'Assassin. You both lose.' : 'Out of time.'}</b>`;
+  if (pub.variant === 'duet') return `<b>${pub.winner ? 'You both win!' : pub.reason === 'assassin' ? 'Assassin. You both lose.' : pub.reason === 'sudden' ? 'Missed in sudden death. You both lose.' : 'Out of time.'}</b>`;
   const w = teamName(pub.winner);
   const why = pub.reason === 'assassin' ? ' (assassin)' : '';
-  if (pub.variant === 'coop') return `<b>${pub.winner === pub.start ? `You win! Score ${pub.score}` : 'You lose' + why}</b>`;
+  if (pub.variant === 'coop') {
+    if (pub.winner === pub.start) return `<b>You win! Score ${pub.score}</b>`;
+    const last = pub.history[pub.history.length - 1] || {};
+    return `<b>You lose${why || (last.dummy ? ': all theirs are covered' : ': you found their last agent')}</b>`;
+  }
   return `<b><i class="dot ${pub.winner}"></i> ${w} wins${why}</b>`;
 }
 
@@ -731,9 +754,14 @@ async function onlineCreate() {
   const su = S.setup;
   const n = su.onlineVariant === 'classic' ? su.onlineSeats : 2;
   const seats = Array(n).fill('empty'); seats[0] = 'human';
-  const o = await ensureOnline();
-  toast('Making a room…');
-  const r = await o.createRoom({ name, seats, options: { variant: su.onlineVariant, style: S.settings.style, timer: S.settings.duetTimer } });
+  if (roomBusy) return; // a double tap must not make two rooms
+  roomBusy = true;
+  let r;
+  try {
+    const o = await ensureOnline();
+    toast('Making a room…');
+    r = await o.createRoom({ name, seats, options: { variant: su.onlineVariant, style: S.settings.style, timer: S.settings.duetTimer } });
+  } catch (e) { r = { ok: false, message: 'No connection. Try again.' }; } finally { roomBusy = false; }
   if (!r.ok) return toast(r.message);
   stopGame();
   S.play = { kind: 'online' }; save(); renderAll();
@@ -743,9 +771,14 @@ async function onlineJoin() {
   const code = ($('#ocode')?.value || '').trim().toUpperCase();
   if (!code) return toast('Type the room code');
   S.settings.name = name; save();
-  const o = await ensureOnline();
-  toast('Joining…');
-  const r = await o.joinRoom(code, name);
+  if (roomBusy) return;
+  roomBusy = true;
+  let r;
+  try {
+    const o = await ensureOnline();
+    toast('Joining…');
+    r = await o.joinRoom(code, name);
+  } catch (e) { r = { ok: false, message: 'No connection. Try again.' }; } finally { roomBusy = false; }
   if (!r.ok) return toast(r.message);
   stopGame();
   S.play = { kind: 'online' }; save(); renderAll();
@@ -769,6 +802,8 @@ function renderOnlineLobby(el, snap) {
 const links = { word: '', sel: null };
 function linksBoard() {
   if (S.play && S.play.kind === 'local') { const st = S.play.state; return { idx: st.words, code: '', from: 'game' }; }
+  // an online game's board (the room shares its words, never its seed)
+  if (S.play && S.play.kind === 'online' && osnap?.pub?.w) return { idx: osnap.pub.w.map(w => META.board.indexOf(w)), code: '', from: 'game' };
   const b = tableBoard();
   return { idx: b.words, code: S.table.code, from: 'table' };
 }
@@ -926,11 +961,12 @@ document.addEventListener('click', e => {
       renderPlay(); break;
     }
     case 'autocover': {
-      const st = S.play.kind === 'local' ? S.play.state : null;
-      if (!st) break;
-      const snap = localSnap();
-      const ba = game.bot({ state: st }, snap.mySeat);
-      act(ba); break;
+      // local: the full state; online: rebuilt from what this spymaster sees (it holds the key)
+      const snap = currentSnap();
+      if (!snap || !snap.pub || !ASSOC) break;
+      const st = S.play.kind === 'local' ? S.play.state : stateFromViews(snap.pub, snap.mine);
+      try { act(game.bot({ state: st }, snap.mySeat)); } catch (x) { toast('Tap one of the agents to cover'); }
+      break;
     }
     case 'quit':
       if (S.play && !(currentSnap()?.status === 'finished') && S.play.kind === 'local') {
@@ -1043,6 +1079,21 @@ function goTab(tab) {
   renderAll();
 }
 try { history.replaceState({ tab: S.tab }, ''); } catch (e) {}
+
+// The same game open in two tabs: a move saved by the other tab is taken over here, so the two
+// never drift apart and a stale tab can't overwrite newer moves. This tab keeps its own open tab.
+window.addEventListener('storage', e => {
+  if (e.key !== LS || !e.newValue) return;
+  let n;
+  try { n = JSON.parse(e.newValue); } catch (x) { return; }
+  if (!n || typeof n !== 'object') return;
+  if (S.play?.kind === 'online' || n.play?.kind === 'online') return; // online rooms sync themselves
+  stopGame();
+  S = { ...S, play: n.play ?? null, table: { ...S.table, ...n.table }, settings: { ...S.settings, ...n.settings }, setup: { ...S.setup, ...n.setup } };
+  $('#layer .cover')?.remove(); // renderPlay puts the pass-the-phone cover back if it's still needed
+  renderAll(); scheduleBots();
+});
+document.addEventListener('visibilitychange', () => { if (!document.hidden) scheduleBots(); });
 window.addEventListener('popstate', e => { if (e.state && e.state.tab) { S.tab = e.state.tab; save(); closeSheet(); renderAll(); } });
 
 loadData().catch(e => { $('#tab-table').innerHTML = `<div class="stage"><div class="msg bad">Couldn't load the word list (${esc(e.message)}). Check your connection and reload.</div></div>`; });

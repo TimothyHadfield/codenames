@@ -15,6 +15,7 @@ Sources:
 | Starting team has 9 agents, other 8, 7 bystanders, 1 assassin | S1, S3 | `genClassic` | engine "9/8/7/1" |
 | Spymaster gives one word plus one number | S1 | `apply` clue | engine "clue rules" |
 | Clue can't be a board word still showing, or part of / built from one | S1 | `checkClue`, `related` | engine "clue rules" (two tests: forms like making/MAKE refused, look-alikes like stay/STAR allowed). The site also refuses clues over 20 letters |
+| Once a word is covered it may be said (S1's own example: a word is barred only until a card covers it) | S1 | `visibleWords` in `game.js`; Play and Table clue checkers pass only uncovered words. Duet: a green card covers the word, a bystander card does not (the word stays in play for the partner) | edge "clue rule: a board word that is already covered" (failed on the old code, 2026-10-20). The computer spymaster still avoids all 25 words (stricter, never illegal) |
 | Up to number + 1 guesses | S1 | `guessesLeft = n + 1` | engine "n+1 guesses" |
 | Clue 0 or unlimited: no cap, but at least one guess is required | S1 | `guessesLeft = 99`, pass blocked before first guess | engine "0 and unlimited" |
 | Own agent: keep guessing. Bystander or other team's agent: turn ends | S1 | `apply` guess | engine + game random games |

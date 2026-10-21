@@ -1,7 +1,7 @@
 # Codenames — progress
 
 ## START HERE
-Read this file, then `CLAUDE.md`, then the last entry of `chat.md`. Last updated: 2026-10-20.
+Read this file, then `CLAUDE.md`, then the last entry of `chat.md`. Last updated: 2026-10-20 (weird-scenario pass).
 
 Live: https://timothyhadfield.github.io/codenames/ · Repo: https://github.com/TimothyHadfield/codenames
 
@@ -22,6 +22,7 @@ Phase 2 of the board-game wave is built: exact-rules play (classic, two-player, 
 | `docs/rules-check.md`, `docs/ideas.md` | Done |
 | Sound & effects (2026-10-20) | Done: shared `js/fx.js` (copied unchanged from `_fx/`) + `js/sfx.js` (event → sound from public-view diffs, so computer and online moves sound too), Settings → Sound & effects, win/lose/big celebrations |
 | Visual design pass (2026-10-20) | Done: deeper key tints + thicker edge, cards with thickness and a press-down, heat bar on the top edge, team-tinted clue bar (pulses while the computer thinks), team-tinted pass screen (opaque), laptop board fills the height, 2-column setup on laptop, bigger Links tap areas |
+| Weird-scenario pass (2026-10-20) | Done: 48 scenarios, 14 failed before, all fixed (table below) |
 | Table look (2026-10-20) | Done: dark-wood table (shared `_table` copied unchanged into `css/table.css` + `js/table.js`), 5×5 beige codename cards at the real ratio (68:44) with the upside-down word on top and the white word strip, agent cover cards dropped with slight jitter, red/blue (Duet: green) agent stacks with counts, the clue on a notepad slip, seat plates for others across the board, your plate + key card in a stand at your edge, a 7° board tilt, a deal-in on start, and the cover card flying from its stack. `fx.js` re-copied as 1.0.3 |
 
 ## Authorized next steps
@@ -34,6 +35,23 @@ Phase 2 of the board-game wave is built: exact-rules play (classic, two-player, 
 - Sound brief (2026-10-20): "add opptional sounds you can add to the games that reflect what's happening in the game accurately as well as win celebrations, and other fun annimations to go along with everything. Just make sure everything is customizable in the settings so the user can play as preffered."
 
 - Table-look brief (2026-10-20): "could you also make sure that each of the games also have a look to them so that the game (either board or card layout) looks almost identical to how the board or card layout looks like in real life, so it's easy to understand if you've already played it before, and also so it feels more like you're actually playing in real life rather than you're playing it online. Even things like how youre cards or other things are laid out infront of you, make it look like they are actual cards laid out similar to how it looks like in real life. Make the decks look like actual decks. Make the board have the same design as it does in real life with the same layouts. It should look kind of like you're looking through a camera that is connected to a user's glasses that is playing in real life (not actually, but the layout and style of everything should be similar)."
+
+- Edge-pass brief (2026-10-20): "I've noticed the games often have good user interfaces but could be improved especially when a scenario happens that the game might've not really thought about or whatnot. Could you focus on making each game perfect especially in scenarios that the game doesn't expect or are a little weird."
+
+## Weird-scenario pass (2026-10-20)
+48 scenarios (full list + before/after evidence: scratchpad `edge/codenames/scenarios.md`; harness `edge.mjs`, `online.mjs`). Fixed:
+| Scenario | Was | Now |
+|---|---|---|
+| Clue slip while a clue is being written | bare "Spymaster" / "Player A" | "Your turn: give a clue", "Red spymaster: give a clue", "Bob is giving a clue", "Sudden death: your pick" |
+| Clue = a covered board word | refused | allowed (rulebook), Play + Table checker |
+| Same game in two tabs | drifted apart, stale tab could overwrite | `storage` event takes the newer save |
+| Tab in the background | computer kept moving unseen | waits, moves when you come back |
+| 10 seats / long or emoji names | plates 240 px wide, acting seat off-screen | plates capped (ellipsis), acting plate scrolled into view |
+| Online "Pick for me" | did nothing | works from the spymaster's own view |
+| Links tab during an online game | showed the Table board | shows the game's board |
+| Duet miss in sudden death / two-player loss | "Out of time." / "You lose" | says why |
+| Online double taps (word, Create, Join) | could send twice | ignored while the first is in flight |
+Passed unchanged: double taps, reload mid-turn/cover, Back, private mode, 320/393/landscape/zoom 200%/1280/1920, long logs, odd clue text (emoji, 21 letters, two words, curly quotes), all-computer seats, first-guess assassin, Table undo.
 
 ## Event → sound map (js/sfx.js)
 | Event | Sound | Animation |
@@ -66,7 +84,9 @@ Others' and computer moves play at 0.85 volume. Card taps don't make the button 
 - Changing `tools/board-words.txt` changes every seeded board (bump VERSION in both `build_assoc.py` and `engine.js`, update the pinned FROG snapshot test).
 - `node --test tests/` fails on Windows; use `node --test`.
 - Port 8231 is used by other agents' servers; this project used 8673 for local checks.
-- `js/engine.js` and `js/game.js` are imported without `?v=`; Pages caches 10 min, so a hard refresh may be needed right after a deploy.
+- `js/engine.js` is imported without `?v=`; Pages caches 10 min, so a hard refresh may be needed right after a deploy. `game.js` is now imported as `./game.js?v=N` from app.js: bump it whenever game.js gains an export, or a cached old game.js breaks the whole page.
+- Never edit files with PowerShell `Get-Content`/`Set-Content`: 5.1 reads UTF-8 as ANSI and turned ∞ / curly quotes into mojibake (caught 10-20). Use the Edit tool.
+- Local test servers: port 18473 was already taken by another game's server (Windows let both bind); check the page title before trusting a run.
 - The computer's clue list is WordNet-filtered nouns (4,247 words) so it avoids "careful"-style clues; people may type any of the 9,119 words.
 - Never show or send a game's board seed (`s.code`) to players: a guesser could rebuild the key from it. Games make an 8-character secret seed; only the Table tab uses short shareable codes (that's its job).
 - The pass-the-phone cover must stay fully opaque (it hides the key). A semi-transparent tint leaked the key in the 10-20 design pass before it was caught.
@@ -92,6 +112,7 @@ Others' and computer moves play at 0.85 volume. Card taps don't make the button 
 - Sounds never heard: headless WebKit on Windows has no Web Audio; only the FX.play calls were checked. Confetti motion looks slow in headless (rAF throttled); real phone not checked.
 - Table look on a real iPhone (notch, Safari toolbar) and in a live online room with real names on the seat plates; checked only in headless WebKit at 320/393/659-landscape/1280/1440.
 - Online sounds: driven by the same snapshot diff as local, but not run in a live two-browser room.
+- Edge pass: online double-tap guard and Create/Join guard checked by code only (a single browser couldn't make the double send happen); two real phones in one room not run. Two tabs both visible side by side may both move the computer (same move, so harmless) — not run.
 
 ## Rejected / parked
 - ~~Board difficulty score~~ no decision depends on it.
