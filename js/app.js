@@ -5,7 +5,7 @@ import { game, setAssoc, setBoardWords, role, seatName, stateFromViews } from '.
 import './fx.js';
 import { createSfx } from './sfx.js';
 
-const BUILD = '2026-10-20.6';
+const BUILD = '2026-10-21.1';
 const LS = 'codenames:v1';
 const $ = (s, el = document) => el.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -139,8 +139,41 @@ function boardHTML(key, words, optsFor) {
   const now = new Set();
   words.forEach((w, p) => { const o = optsFor(p); if (o.cover) now.add(p + o.cover + (o.half || '')); });
   seenCovers.set(key, now);
-  return `<div class="board${deal ? ' dealing' : ''}" data-board="${esc(key)}">${html}</div>`;
+  // .boardbox: on laptop / phone-on-its-side the board grows to fill the free space on the table (css)
+  return `<div class="boardbox"><div class="board${deal ? ' dealing' : ''}" data-board="${esc(key)}">${html}</div></div>`;
 }
+
+// Long words are squeezed sideways to fit (like condensed print) instead of being printed smaller or
+// cut off, so every word on the board keeps the same letter height. Runs after each render and on resize.
+// offsetWidth ignores transforms, so it reads the natural width; all reads happen before any write.
+function fitText(root) {
+  if (!root) return;
+  const jobs = [];
+  root.querySelectorAll('.card .w').forEach(w => jobs.push([w, w.parentElement.clientWidth - 4]));
+  root.querySelectorAll('.cover-tile .cw').forEach(w => {
+    const tile = w.parentElement, half = tile.classList.contains('half');
+    const icon = half ? tile.querySelector('svg')?.getBoundingClientRect().width || 0 : 0;
+    jobs.push([w, tile.clientWidth - (half ? icon + 8 : 8)]);
+  });
+  const sized = jobs.map(([w, room]) => [w, room, w.offsetWidth]);
+  for (const [w, room, nat] of sized) {
+    if (room > 0 && nat > room) { w.style.transform = `scaleX(${(room / nat).toFixed(3)})`; w.style.margin = `0 ${((room - nat) / 2).toFixed(1)}px`; }
+    else { w.style.transform = ''; w.style.margin = ''; }
+  }
+  const svg = root.querySelector('.map svg');
+  if (svg) {
+    // map words at 10.5 px or more on screen, whatever the map's size; a long word is squeezed into its box
+    const scale = svg.getBoundingClientRect().width / 500;
+    if (!scale) return;
+    const fs = Math.max(13, Math.min(19, 10.5 / scale));
+    const texts = [...svg.querySelectorAll('text')];
+    texts.forEach(t => { t.style.fontSize = fs + 'px'; t.removeAttribute('textLength'); });
+    const lens = texts.map(t => t.getComputedTextLength());
+    texts.forEach((t, i) => { if (lens[i] > 86) { t.setAttribute('textLength', '86'); t.setAttribute('lengthAdjust', 'spacingAndGlyphs'); } });
+  }
+}
+let fitRaf = 0;
+window.addEventListener('resize', () => { cancelAnimationFrame(fitRaf); fitRaf = requestAnimationFrame(() => fitText(document.querySelector('.tab.on'))); });
 
 // A stack of agent cards (face up, like the box's red / blue piles): thicker with more cards left.
 // Inner bits are <i>/<b>, not spans, so sfx.js's ".counts span:nth-child(n)" still finds the stack.
@@ -339,6 +372,7 @@ function renderTable() {
   keepFocus(el, () => {
     el.innerHTML = `<div class="stage"><div class="boardwrap tbl-surface tbl-wood-dark"><div class="bar">${barHTML}</div>${bHTML}${edge}</div><div class="panel">${panel}</div></div>`;
   });
+  fitText(el);
   flyCovers(el);
 }
 
@@ -595,6 +629,7 @@ function renderPlay() {
     const a = row.getBoundingClientRect(), b = tp.getBoundingClientRect();
     row.scrollLeft += b.left + b.width / 2 - (a.left + a.width / 2);
   }
+  fitText(el);
   flyCovers(el);
   fxCheck();
 }
@@ -830,8 +865,8 @@ function renderLinks() {
     const nodes = b.idx.map((w, i) => {
       const word = META.board[w];
       const on = sel === i;
-      const fs = word.length > 8 ? 11 : word.length > 6 ? 12.5 : 14;
-      return `<g data-node="${i}" style="cursor:pointer"><rect x="${cx(i) - 50}" y="${cy(i) - 34}" width="100" height="68" fill="transparent"/><rect x="${cx(i) - 46}" y="${cy(i) - 17}" width="92" height="34" rx="7" fill="${on ? 'var(--warm)' : 'var(--paper)'}" stroke="${on ? '#fff' : 'rgba(0,0,0,.2)'}"/><text x="${cx(i)}" y="${cy(i) + 4.5}" text-anchor="middle" fill="var(--ink)" style="font-size:${fs}px">${esc(word)}</text></g>`;
+      // font size set by fitText() from the map's size on screen
+      return `<g data-node="${i}" style="cursor:pointer"><rect x="${cx(i) - 50}" y="${cy(i) - 34}" width="100" height="68" fill="transparent"/><rect x="${cx(i) - 46}" y="${cy(i) - 17}" width="92" height="34" rx="7" fill="${on ? 'var(--warm)' : 'var(--paper)'}" stroke="${on ? '#fff' : 'rgba(0,0,0,.2)'}"/><text x="${cx(i)}" y="${cy(i)}" dominant-baseline="central" text-anchor="middle" fill="var(--ink)" style="font-size:14px">${esc(word)}</text></g>`;
     }).join('');
     mapHTML = `<div class="map"><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Links between board words">${lines}${nodes}</svg></div>`;
     if (sel != null) {
@@ -858,6 +893,7 @@ function renderLinks() {
   keepFocus(el, () => {
     el.innerHTML = `<div class="stage"><div class="boardwrap"><div class="bar"><span class="chip">${b.from === 'game' ? 'This game' : 'Table ' + esc(b.code)}</span><input id="linkWord" class="grow" style="height:36px;border-radius:9px;border:1px solid var(--line);background:var(--bg-soft);padding:0 10px;outline:none" placeholder="Any word…" value="${esc(links.word)}" autocomplete="off" autocapitalize="off" aria-label="Look up a word"></div>${mapHTML}</div><div class="panel">${side}</div></div>`;
   });
+  fitText(el);
 }
 
 // ------------------------------------------------------------------ SETTINGS tab

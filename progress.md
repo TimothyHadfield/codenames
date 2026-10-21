@@ -1,7 +1,7 @@
 # Codenames — progress
 
 ## START HERE
-Read this file, then `CLAUDE.md`, then the last entry of `chat.md`. Last updated: 2026-10-20 (weird-scenario pass).
+Read this file, then `CLAUDE.md`, then the last entry of `chat.md`. Last updated: 2026-10-21 (visibility pass).
 
 Live: https://timothyhadfield.github.io/codenames/ · Repo: https://github.com/TimothyHadfield/codenames
 
@@ -23,6 +23,7 @@ Phase 2 of the board-game wave is built: exact-rules play (classic, two-player, 
 | Sound & effects (2026-10-20) | Done: shared `js/fx.js` (copied unchanged from `_fx/`) + `js/sfx.js` (event → sound from public-view diffs, so computer and online moves sound too), Settings → Sound & effects, win/lose/big celebrations |
 | Visual design pass (2026-10-20) | Done: deeper key tints + thicker edge, cards with thickness and a press-down, heat bar on the top edge, team-tinted clue bar (pulses while the computer thinks), team-tinted pass screen (opaque), laptop board fills the height, 2-column setup on laptop, bigger Links tap areas |
 | Weird-scenario pass (2026-10-20) | Done: 48 scenarios, 14 failed before, all fixed (table below) |
+| Visibility pass (2026-10-21) | Done: words one letter height (long ones squeezed, not shrunk), covered words readable, laptop + phone-on-its-side boards fill their free space, Links map fills too. Before → after: 9-letter words 9 → 12px at 393; landscape board 24% → 41% of screen; laptop empty band 88-180 → 18px. Check: `node tools/layout-check.mjs [webkit|chrome]` |
 | Table look (2026-10-20) | Done: dark-wood table (shared `_table` copied unchanged into `css/table.css` + `js/table.js`), 5×5 beige codename cards at the real ratio (68:44) with the upside-down word on top and the white word strip, agent cover cards dropped with slight jitter, red/blue (Duet: green) agent stacks with counts, the clue on a notepad slip, seat plates for others across the board, your plate + key card in a stand at your edge, a 7° board tilt, a deal-in on start, and the cover card flying from its stack. `fx.js` re-copied as 1.0.3 |
 
 ## Authorized next steps
@@ -35,6 +36,8 @@ Phase 2 of the board-game wave is built: exact-rules play (classic, two-player, 
 - Sound brief (2026-10-20): "add opptional sounds you can add to the games that reflect what's happening in the game accurately as well as win celebrations, and other fun annimations to go along with everything. Just make sure everything is customizable in the settings so the user can play as preffered."
 
 - Table-look brief (2026-10-20): "could you also make sure that each of the games also have a look to them so that the game (either board or card layout) looks almost identical to how the board or card layout looks like in real life, so it's easy to understand if you've already played it before, and also so it feels more like you're actually playing in real life rather than you're playing it online. Even things like how youre cards or other things are laid out infront of you, make it look like they are actual cards laid out similar to how it looks like in real life. Make the decks look like actual decks. Make the board have the same design as it does in real life with the same layouts. It should look kind of like you're looking through a camera that is connected to a user's glasses that is playing in real life (not actually, but the layout and style of everything should be similar)."
+
+- Visibility brief (2026-10-21): "for a lot of the games the cards or board layout is too small to easily see what's going on. Some games just need small design imporvements like filling the screen with the board view and fitting the cards and other things in the empty space ... Fix this so the view of what's happening and where everything is is very clear. Consider parts of the board that are dense in what's happening and if the user can reasonably see it."
 
 - Edge-pass brief (2026-10-20): "I've noticed the games often have good user interfaces but could be improved especially when a scenario happens that the game might've not really thought about or whatnot. Could you focus on making each game perfect especially in scenarios that the game doesn't expect or are a little weird."
 
@@ -93,6 +96,8 @@ Others' and computer moves play at 0.85 volume. Card taps don't make the button 
 - Load `css/table.css` BEFORE `css/style.css`: table.css sets `--ink` on `:root`, and the app's own value must win. Don't edit `css/table.css`, `js/table.js` or `js/fx.js` (shared copies).
 - The flying cover's ghost uses `position:fixed` on `<body>`; `inset:auto` must come before `left/top` in its cssText, or it falls to the page bottom. `.board` has a perspective tilt, so never put fixed elements inside it.
 - Board grid needs `minmax(0,1fr)` + `.card{min-width:0}` + `.stage{min-width:0}`, or long words widen the page at 393 px.
+- Card print is sized in `cqw` (each `.card` is a container) and `fitText()` in app.js squeezes long words with scaleX + negative margins; call it after any render that rebuilds cards or the Links map (it also runs on resize). On laptop / phone-on-its-side the board sits in `.boardbox` (container-type: size) and its width formula assumes the board's gaps (laptop 10/12 px, landscape 5 px): change both together.
+- Phone on its side (≤999 px wide, ≤520 px tall) hides the brand header; the online room code still shows at the bottom of the panel.
 - The 403 from Firestore seen once in a headless run came from a request that retried; the room still worked on the next run. Watch for it.
 
 ## Decisions
@@ -106,6 +111,7 @@ Others' and computer moves play at 0.85 volume. Card taps don't make the button 
 
 ## NOT verified
 - Real iPhone (only WebKit at 393 px).
+- Visibility pass: real iPhone landscape with Safari's toolbars; 320 px cards stay 56×36 (tap height under 40 px, the board already spans the width); the spymaster key card is still hidden in landscape (tints show the key); at 1920+ the tilt leaves ~70 px of wood above the board.
 - Risk-odds temperature T = 0.05 is not calibrated against real people.
 - Duet invalid-clue token penalty not implemented; the classic invalid-clue call is local Two teams only (not online).
 - Online with 3+ real people and host takeover (shared module's own tests cover takeover).
