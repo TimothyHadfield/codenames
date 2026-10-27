@@ -1,5 +1,5 @@
 {
- "measured": "2026-10-20",
+ "measured": "2026-10-27",
  "games": 300,
  "rows": [
   {
@@ -45,20 +45,20 @@
   {
    "who": "cpu-clues",
    "style": "normal",
-   "right": 96,
-   "wpc": 1.36,
+   "right": 95,
+   "wpc": 1.37,
    "win": 86,
-   "ass": 2,
+   "ass": 0,
    "score": 2.2,
-   "turns": 6.7
+   "turns": 6.8
   },
   {
    "who": "cpu-guesses",
    "style": "normal",
-   "right": 86,
-   "wpc": 2.07,
-   "win": 90,
-   "ass": 6,
+   "right": 85,
+   "wpc": 2.14,
+   "win": 91,
+   "ass": 4,
    "score": 3.4,
    "turns": 5.1
   },
@@ -66,29 +66,29 @@
    "who": "same-mind",
    "style": "bold",
    "right": 100,
-   "wpc": 1.71,
+   "wpc": 1.67,
    "win": 100,
    "ass": 0,
-   "score": 3.7,
-   "turns": 5.3
+   "score": 3.6,
+   "turns": 5.4
   },
   {
    "who": "cpu-clues",
    "style": "bold",
-   "right": 91,
-   "wpc": 1.72,
-   "win": 87,
-   "ass": 5,
-   "score": 3,
-   "turns": 5.7
+   "right": 90,
+   "wpc": 1.67,
+   "win": 89,
+   "ass": 1,
+   "score": 2.8,
+   "turns": 5.9
   },
   {
    "who": "cpu-guesses",
    "style": "bold",
    "right": 81,
-   "wpc": 2.53,
-   "win": 86,
-   "ass": 10,
+   "wpc": 2.52,
+   "win": 90,
+   "ass": 4,
    "score": 3.5,
    "turns": 4.8
   }
