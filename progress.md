@@ -1,7 +1,7 @@
 # Codenames — progress
 
 ## START HERE
-Read this file, then `CLAUDE.md`, then the last entry of `chat.md`. Last updated: 2026-10-21 (visibility pass).
+Read this file, then `CLAUDE.md`, then the last entry of `chat.md`. Last updated: 2026-10-27 (improvement pass, live at d7385ed).
 
 Live: https://timothyhadfield.github.io/codenames/ · Repo: https://github.com/TimothyHadfield/codenames
 
@@ -24,10 +24,12 @@ Phase 2 of the board-game wave is built: exact-rules play (classic, two-player, 
 | Visual design pass (2026-10-20) | Done: deeper key tints + thicker edge, cards with thickness and a press-down, heat bar on the top edge, team-tinted clue bar (pulses while the computer thinks), team-tinted pass screen (opaque), laptop board fills the height, 2-column setup on laptop, bigger Links tap areas |
 | Weird-scenario pass (2026-10-20) | Done: 48 scenarios, 14 failed before, all fixed (table below) |
 | Visibility pass (2026-10-21) | Done: words one letter height (long ones squeezed, not shrunk), covered words readable, laptop + phone-on-its-side boards fill their free space, Links map fills too. Before → after: 9-letter words 9 → 12px at 393; landscape board 24% → 41% of screen; laptop empty band 88-180 → 18px. Check: `node tools/layout-check.mjs [webkit|chrome]` |
+| Improvement pass (2026-10-27) | Done, live d7385ed: guided first game (board TUT7, clue INSTRUMENT 2) + Rules sheet (`_coach`), My stats + 11 achievements + Daily puzzle with share line (`_profile`; Hint/Undo/second Daily go = unrated "With Hint or Undo"), home-screen install + offline (`_pwa`, `tests/pwa-check.json` 18/18), Undo vs computer (not in Daily), end-of-game replay, sand timers (Settings → Turn timer while you're to act; Table tab Start/Stop), opens on Play, laptop cards start under the bar, phone Table bottom filled by the timer, 4 agent + 2 bystander cover figures, assassin scene + win wave (off with Animations off / Reduce Motion). Codenames' kit glue is `js/kit.js` |
 | Table look (2026-10-20) | Done: dark-wood table (shared `_table` copied unchanged into `css/table.css` + `js/table.js`), 5×5 beige codename cards at the real ratio (68:44) with the upside-down word on top and the white word strip, agent cover cards dropped with slight jitter, red/blue (Duet: green) agent stacks with counts, the clue on a notepad slip, seat plates for others across the board, your plate + key card in a stand at your edge, a 7° board tilt, a deal-in on start, and the cover card flying from its stack. `fx.js` re-copied as 1.0.3 |
 
 ## Authorized next steps
-- 2026-10-19 (manager brief): finish phase 2, push, Pages live, QA pass. Nothing else authorized.
+- 2026-10-19 (manager brief): finish phase 2, push, Pages live, QA pass.
+- 2026-10-27 (manager brief): per-game improvement pass — done. Nothing else authorized. Don't touch `js/online.js` / online flows here (the online layer is rewritten separately).
 
 ## Standing instructions (Tim's words)
 - Phase-2 brief: "build regular play online with a computer or other online players for all the games and their common varients that match exactly the play of the in-person game. 2. Brainstorm what additions you can do to the game with data, exploration, theory, etc. (ex: using connections to measure how similar words are to each other in codenames). 3. Implement your good ideas. 4. Really work on the webdesign of the games, aswell as art, fitting it with an iphone and computer, or anything else. 5. make sure that everything works properlly without errors or whatnot. ... Make sure to get everything right like rules and artwork and specific numbers of cards, routes, details, etc."
@@ -63,25 +65,27 @@ Passed unchanged: double taps, reload mid-turn/cover, Back, private mode, 320/39
 | Own agent revealed | cardFlip, then ding | card pops, team count pops |
 | Bystander | cardFlip, then thud (custom) | (cover flip only) |
 | Other team's agent | cardFlip, then buzz (custom) | card shakes |
-| Assassin | cardFlip, then explosion | board shakes, card flashes red |
+| Assassin | cardFlip, then explosion | board shakes, card flashes red, assassin figure rises over a dark veil (app.js `moment`) |
 | Two-player cover / penalty | cardFlip, then place | |
 | Turn passes (not to you) | whoosh (soft) | |
 | Becomes YOUR turn | turn chime | clue bar pulses |
 | Duet timer token | chip | "−1" floats off Turns left |
 | Duet sudden death | alarm | turns counter pulses |
 | 3 right on one clue | celebrate big | sparkles at the card |
-| Game over | celebrate win (team colours) / lose | confetti / dim |
+| Game over | celebrate win (team colours) / lose | confetti / dim; a win also sends a wave over your covered agents |
 | Illegal move | error | |
 | Table tab | cardFlip + thud / place / ding (Duet agent) / explosion; Undo = cardSlide | |
 Others' and computer moves play at 0.85 volume. Card taps don't make the button "tap" click. Animations off also stops the cover flip; Fast halves it.
 
-## Measured strength (tools/simulate.mjs, 300 games per row, official two-player rules, 2026-10-19)
-"Other mind" = GloVe 50d table standing in for a person who links words differently.
-| Style | Computer clues → other guesser: right / words per clue / win / assassin | Other's clues → computer guesser: right |
+## Measured strength (tools/simulate.mjs, 300 games per row, official two-player rules)
+"Other mind" = GloVe 50d table standing in for a person who links words differently (rebuilt 10-27 from a Wavelength builder's `g50.npy`; the 300d rebuild from the same source matched `assoc.bin` exactly).
+| Style | Computer clues → other guesser: right / words per clue / win / assassin (10-19 → 10-27) | Other's clues → computer guesser: right / assassin |
 |---|---|---|
-| Safe | 97% / 1.25 / 79% / 0% | 89% |
-| Normal | 96% / 1.36 / 86% / 2% | 86% |
-| Bold | 91% / 1.72 / 87% / 5% | 81% |
+| Safe | 96% / 1.25 / 75% / 0% (unchanged settings; 79% on 10-19 was a different board sample) | 87% / 3% |
+| Normal | 96→95% / 1.36→1.37 / 86→86% / **2→0%** | 85% / 4% |
+| Bold | 91→90% / 1.72→1.67 / 87→89% / **5→1%** | 81% / 4% |
+Change 10-27: Normal/Bold keep a wider berth round the assassin (`assPad`) and count bystanders a bit less (`neuCut`). Tried and dropped (no better or worse): an expected-value clue picker, a z-score picker, guessers that stop early / discount words close to everything / take the bonus guess; the wider berth on Safe (wins 79→75%).
+Computer team vs computer team (`tools/head2head.mjs`, 400 games per pair, colours swapped): Normal beats Safe 68.3% (+133 Elo), Bold beats Normal 80.3% (+244). My stats levels: Safe 1200, Normal 1333, Bold 1577.
 
 ## Traps
 - Changing `tools/board-words.txt` changes every seeded board (bump VERSION in both `build_assoc.py` and `engine.js`, update the pinned FROG snapshot test).
@@ -99,6 +103,10 @@ Others' and computer moves play at 0.85 volume. Card taps don't make the button 
 - Card print is sized in `cqw` (each `.card` is a container) and `fitText()` in app.js squeezes long words with scaleX + negative margins; call it after any render that rebuilds cards or the Links map (it also runs on resize). On laptop / phone-on-its-side the board sits in `.boardbox` (container-type: size) and its width formula assumes the board's gaps (laptop 10/12 px, landscape 5 px): change both together.
 - Phone on its side (≤999 px wide, ≤520 px tall) hides the brand header; the online room code still shows at the bottom of the panel.
 - The 403 from Firestore seen once in a headless run came from a request that retried; the room still worked on the next run. Watch for it.
+- Kit copies (don't edit, re-copy from the kit folder): `js/coach.js`, `css/coach.css`, `js/profile.js`, `css/profile.css`, `js/pwa.js`, `sw.js`, `tools/pwa-check.mjs`, `tools/make-icons.mjs`. Bump `data-version` on the pwa.js tag every deploy (it names the offline cache), plus `BUILD` in app.js and the changed files' `?v=`. `kit.js` is imported as `./kit.js?v=N`: bump it with kit.js.
+- `tests/kit.test.mjs` pins the tutorial board: if clue settings change and TUT7 stops opening with INSTRUMENT 2, pick a new board (scratchpad `findtut.mjs` idea: both word models must put the targets first) and update `KIT.TUTORIAL` + the tour text.
+- Laptop `.boardbox` must stay `flex: 1` (cards at the top, spare wood at your edge). Making the wood hug the board was tried 10-27: it fails layout-check's "table fills the column" and collapses the Links map.
+- `PWA.safeToReload` is false mid-game on the Play tab (pwa-check requires it); the "New version" pill shows instead.
 
 ## Decisions
 - Word links: GloVe 6B 300d cosine, int8, 414 board × 9,119 clue words (3.8 MB), loaded once.
@@ -107,6 +115,7 @@ Others' and computer moves play at 0.85 volume. Card taps don't make the button 
 - Infinity/0 clues stored as a 99 guess cap (JSON-safe).
 - Safe style loosened 2026-10-19 (was 45% wins, now 79%).
 - Duet sudden death: a player may point only while the partner's side has agents; alternate when both can (2026-10-20, after QA found an unwinnable case).
+- 10-27 (Tim's calls, plainest version built): sand timers are advisory (nothing happens at 0:00); Daily = "You guess" at Normal; app opens on Play; level names Safe/Normal/Bold; achievement names; no per-friend record; word themes/languages not built.
 - Clue "same stem" rule = shared start of 3+ letters and both endings are plain word endings (s, ed, ing, y/ies...), so stay/STAR is allowed and making/MAKE is not.
 
 ## NOT verified
@@ -119,6 +128,8 @@ Others' and computer moves play at 0.85 volume. Card taps don't make the button 
 - Table look on a real iPhone (notch, Safari toolbar) and in a live online room with real names on the seat plates; checked only in headless WebKit at 320/393/659-landscape/1280/1440.
 - Online sounds: driven by the same snapshot diff as local, but not run in a live two-browser room.
 - Edge pass: online double-tap guard and Create/Join guard checked by code only (a single browser couldn't make the double send happen); two real phones in one room not run. Two tabs both visible side by side may both move the computer (same move, so harmless) — not run.
+
+- Improvement pass: install-to-home-screen and offline only in the pwa-check harness (WebKit), not on a real iPhone; share sheet (navigator.share) not run (headless falls back to clipboard); the assassin scene and win wave seen only in headless screenshots; quitting a rated game mid-way records nothing (a losing game can be dropped).
 
 ## Rejected / parked
 - ~~Board difficulty score~~ no decision depends on it.
