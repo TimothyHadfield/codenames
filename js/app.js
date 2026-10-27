@@ -612,6 +612,23 @@ function recordIfOver() {
     PF.recordResult(KIT.result({ seats: P.seats, pub: game.publicView(P.state), myTeam: myTeamOf(P), style: P.state.style, helped: !!(P.helped || P.hints), daily: P.daily || null }));
   } catch (e) { /* stats are optional */ }
 }
+// Leaving a game vs the computer before it ends counts as a loss once you've made a move (a Daily puzzle
+// from the start); the guided game and pass-the-phone games never count.
+function quitCounts() {
+  const P = S.play;
+  return !!(PF && P && P.kind === 'local' && !P.recorded && !P.tutorial && !game.isOver(P.state) && (P.moved || P.daily));
+}
+function abandonGame() {
+  if (!quitCounts()) return;
+  const P = S.play;
+  P.recorded = true; save();
+  try {
+    const r = KIT.result({ seats: P.seats, pub: game.publicView(P.state), myTeam: myTeamOf(P), style: P.state.style, helped: !!(P.helped || P.hints), daily: P.daily || null });
+    if (r.mode === 'pass') return;
+    PF.recordResult({ ...r, won: false, draw: false, score: null, extra: { ...(r.extra || {}), quit: true } });
+    toast('Game left: counted as a loss');
+  } catch (e) { /* stats are optional */ }
+}
 function startDaily() {
   if (!ASSOC) return toast('Word links still loading');
   const day = PF ? PF.daily.date() : new Date().toISOString().slice(0, 10);
@@ -677,6 +694,7 @@ setInterval(() => {
 
 // extra: { code, style, rng } fix the board / clue style (guided game, Daily puzzle); anything else is kept on S.play
 function startLocal(variant, seats, extra = {}) {
+  abandonGame();
   stopGame();
   const { code, style, rng, ...keep } = extra;
   const options = { variant, style: style || S.settings.style, timer: S.settings.duetTimer, code };
@@ -704,7 +722,9 @@ function act(action) {
     return true;
   }
   const snap = localSnap();
-  return localAct(snap.mySeat, action);
+  const ok = localAct(snap.mySeat, action);
+  if (ok && S.play && !S.play.moved) { S.play.moved = true; save(); }
+  return ok;
 }
 
 // ------------------------------------------------------------------ PLAY tab render
@@ -1255,9 +1275,9 @@ document.addEventListener('click', e => {
     }
     case 'quit':
       if (S.play && !(currentSnap()?.status === 'finished') && S.play.kind === 'local') {
-        sheet(`<h2>Quit this game?</h2><div class="btns"><button class="btn" id="no">Keep playing</button><button class="btn main" id="yes">Quit</button></div>`, sh => {
+        sheet(`<h2>Quit this game?</h2>${quitCounts() ? '<p class="muted">It counts as a loss in My stats.</p>' : ''}<div class="btns"><button class="btn" id="no">Keep playing</button><button class="btn main" id="yes">Quit</button></div>`, sh => {
           $('#no', sh).onclick = closeSheet;
-          $('#yes', sh).onclick = () => { closeSheet(); stopGame(); S.play = null; save(); renderAll(); };
+          $('#yes', sh).onclick = () => { closeSheet(); abandonGame(); stopGame(); S.play = null; save(); renderAll(); };
         });
       } else {
         if (S.play?.kind === 'online' && online) online.leave();
