@@ -6,7 +6,7 @@ import './fx.js';
 import { createSfx } from './sfx.js';
 import * as KIT from './kit.js?v=10';
 
-const BUILD = '2026-10-27.1';
+const BUILD = '2026-10-27.2';
 const LS = 'codenames:v1';
 const $ = (s, el = document) => el.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -28,7 +28,21 @@ const ART = {
   daily: '<svg viewBox="0 0 40 40" fill="none" stroke="#f0b354" stroke-width="2.2"><rect x="7" y="9" width="26" height="24" rx="4"/><path d="M7 16h26M14 6v6M26 6v6"/><path d="M15 24l4 4 7-8" stroke-linecap="round" stroke-linejoin="round"/></svg>',
   globe: '<svg viewBox="0 0 40 40" fill="none" stroke="#6ea8fe" stroke-width="2.2"><circle cx="20" cy="20" r="13"/><path d="M7 20h26M20 7c4 4 5.5 8.5 5.5 13S24 29 20 33M20 7c-4 4-5.5 8.5-5.5 13S16 29 20 33"/></svg>',
 };
-const coverArt = c => (c === 'A' ? ART.assassin : c === 'N' ? ART.bystander : ART.agent);
+// Cover art (2026-10-27): four agents and two bystanders, picked by the word so every phone shows the same one.
+// Dark details are drawn in black at low opacity, so they read on red, blue, green and tan alike.
+const D = 'fill="#000" opacity=".32"';
+const AGENTS = [
+  ART.agent, // fedora
+  `<svg viewBox="0 0 40 40" aria-hidden="true"><path fill="currentColor" d="M13.6 17.6c0-5.2 2.9-8.2 6.4-8.2s6.4 3 6.4 8.2c-1.6-1.8-3.7-2.6-6.4-2.6s-4.8.8-6.4 2.6z"/><circle fill="currentColor" cx="20" cy="20" r="5.8"/><path ${D} d="M13.8 18.4h12.4v1.9c0 1.2-1 1.9-2.3 1.9h-1.6c-1.1 0-1.6-.9-2.3-1.9-.7 1-1.2 1.9-2.3 1.9h-1.6c-1.3 0-2.3-.7-2.3-1.9z"/><path fill="currentColor" d="M7 38c0-8 5.8-12.4 13-12.4S33 30 33 38z"/><path ${D} d="M20 26.2l-1.7 2.1 1.7 8.2 1.7-8.2z"/></svg>`, // shades + tie
+  `<svg viewBox="0 0 40 40" aria-hidden="true"><path fill="currentColor" d="M12.4 15.2c.9-3.8 4.4-5.9 8.4-5.7 3.7.2 6.8 2.1 7.3 4.6.2 1.2-1.3 1.7-2.7 1.6l-10.8-.2c-1.6 0-2.6-.1-2.2-.3z"/><circle fill="currentColor" cx="20" cy="20.6" r="5.6"/><path fill="currentColor" d="M14.1 19.4c-.7 3.6-.2 6.3 1.4 8h2.3c-1.7-1.7-2.3-4.2-2.1-7zM25.9 19.4c.7 3.6.2 6.3-1.4 8h-2.3c1.7-1.7 2.3-4.2 2.1-7z"/><path fill="currentColor" d="M7 38c0-8 5.8-12 13-12s13 4 13 12z"/><path ${D} d="M14 27.4l6 5.2 6-5.2c-1.8-.8-3.8-1.2-6-1.2s-4.2.4-6 1.2z"/></svg>`, // beret
+  `<svg viewBox="0 0 40 40" aria-hidden="true"><path fill="currentColor" d="M14.2 15.6c0-4.5 2.6-7.2 5.8-7.2s5.8 2.7 5.8 7.2z"/><path fill="currentColor" d="M10.8 15.2h18.4c.7 0 .9.9.3 1.2-2.7 1.3-6 1.9-9.5 1.9s-6.8-.6-9.5-1.9c-.6-.3-.4-1.2.3-1.2z"/><circle fill="currentColor" cx="20" cy="22" r="5.2"/><path fill="currentColor" d="M7 38c0-8 5.8-12 13-12s13 4 13 12z"/><path ${D} d="M15.6 27l4.4 5.4 4.4-5.4c-1.3-.5-2.8-.8-4.4-.8s-3.1.3-4.4.8z"/><circle ${D} cx="20" cy="34.6" r="1"/></svg>`, // bowler + coat
+];
+const BYSTANDERS = [
+  ART.bystander,
+  `<svg viewBox="0 0 40 40" aria-hidden="true"><path fill="currentColor" d="M13.4 13.8c.3-4 3-6.3 6.6-6.3s6.3 2.3 6.6 6.3zM25.4 12.4h5c.7 0 .8.9.1 1.1l-5.1 1.2z"/><circle fill="currentColor" cx="20" cy="16" r="6"/><path fill="currentColor" d="M8 37c0-8 5.4-13 12-13s12 5 12 13z"/></svg>`, // cap
+];
+const pickArt = (list, word) => { let h = 0; for (const ch of String(word || '')) h = (h * 31 + ch.charCodeAt(0)) >>> 0; return list[h % list.length]; };
+const coverArt = (c, word) => (c === 'A' ? ART.assassin : c === 'N' ? (word ? pickArt(BYSTANDERS, word) : ART.bystander) : (word ? pickArt(AGENTS, word) : ART.agent));
 
 // ------------------------------------------------------------------ saved state
 function defaults() {
@@ -69,7 +83,46 @@ const sfx = createSfx(FX, {
   clueWord: () => document.querySelector('#tab-play .cluebar .cw'),
   count: t => document.querySelector(`#tab-play .astack.${t === 'B' ? 'B' : 'R'}`),
   timer: () => document.querySelector('#tab-play .turnline b'),
+  moment: (kind, el, team) => moment(kind, el, team),
 });
+
+// Big scenes (2026-10-27): the assassin rises out of its card over a dark veil; a win sends a wave over
+// your agents. Off with Animations off or the phone's Reduce Motion (the sound and confetti still follow FX).
+const ASSASSIN_BIG = `<svg viewBox="0 0 100 100" aria-hidden="true"><defs><radialGradient id="mo-g" cx="50%" cy="40%" r="62%"><stop offset="0" stop-color="#3a3d4a"/><stop offset="1" stop-color="#07080b"/></radialGradient></defs>
+<circle cx="50" cy="50" r="46" fill="url(#mo-g)" stroke="#ff5d52" stroke-width="2.5"/>
+<path fill="#000" d="M50 19c-11.6 0-18.6 9.6-18.6 21.4 0 6 2 10.8 5 13.8-8 4-13.6 11.6-14.6 25.4h56.4c-1-13.8-6.6-21.4-14.6-25.4 3-3 5-7.8 5-13.8C68.6 28.6 61.6 19 50 19z"/>
+<path fill="#ff5d52" d="M40.6 45.4c3-1.8 6.2-1.8 7.4 0-2.2 1.2-5.2 1.4-7.4 0zM52 45.4c1.2-1.8 4.4-1.8 7.4 0-2.2 1.4-5.2 1.2-7.4 0z"/>
+<g fill="none" stroke="#ff5d52" stroke-width="2.4"><circle cx="50" cy="50" r="37" stroke-dasharray="7 5" opacity=".85"/><path d="M50 2v15M50 83v15M2 50h15M83 50h15"/></g></svg>`;
+const stillFx = () => !FX.settings.animations || !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
+function moment(kind, el, team) {
+  if (stillFx() || !el || !el.animate) return;
+  const ms = 1500 * (FX.settings.animSpeed === 'fast' ? 0.55 : 1);
+  if (kind === 'assassin') {
+    const r = el.getBoundingClientRect(), W = innerWidth, H = innerHeight, size = Math.min(W, H) * 0.5;
+    const veil = document.createElement('div'), fig = document.createElement('div');
+    veil.className = 'mo-veil'; fig.className = 'mo-ass';
+    veil.setAttribute('aria-hidden', 'true'); fig.setAttribute('aria-hidden', 'true');
+    fig.innerHTML = ASSASSIN_BIG;
+    fig.style.cssText = `width:${size}px;height:${size}px;left:${(W - size) / 2}px;top:${(H - size) / 2}px`;
+    document.body.append(veil, fig);
+    const dx = r.left + r.width / 2 - W / 2, dy = r.top + r.height / 2 - H / 2, s0 = Math.max(0.1, r.height / size);
+    veil.animate([{ opacity: 0 }, { opacity: 1, offset: 0.25 }, { opacity: 1, offset: 0.7 }, { opacity: 0 }], { duration: ms, easing: 'ease-out' }).onfinish = () => veil.remove();
+    fig.animate([
+      { transform: `translate(${dx}px,${dy}px) scale(${s0}) rotate(-25deg)`, opacity: 0 },
+      { transform: 'translate(0,0) scale(1.08) rotate(0deg)', opacity: 1, offset: 0.3 },
+      { transform: 'translate(0,0) scale(1) rotate(0deg)', opacity: 1, offset: 0.72 },
+      { transform: 'translate(0,0) scale(1.45) rotate(0deg)', opacity: 0 },
+    ], { duration: ms, easing: 'cubic-bezier(.2,.8,.2,1)' }).onfinish = () => fig.remove();
+    setTimeout(() => { veil.remove(); fig.remove(); }, ms + 400); // in case a finish event never comes
+  } else if (kind === 'win') {
+    el.querySelectorAll(`.card[data-pos]`).forEach(card => {
+      if (!card.querySelector(`.cover-tile.c-${team}`)) return;
+      const p = +card.dataset.pos, wave = (Math.floor(p / 5) + (p % 5)) * 70;
+      card.animate([{ translate: '0 0', scale: '1', filter: 'brightness(1)' }, { translate: '0 -10px', scale: '1.08', filter: 'brightness(1.3)', offset: 0.4 }, { translate: '0 0', scale: '1', filter: 'brightness(1)' }],
+        { duration: ms * 0.45, delay: wave, easing: 'ease-out' });
+    });
+  }
+}
 // ------------------------------------------------------------------ shared kits: rules + guided game (js/coach.js), My stats (js/profile.js)
 const COACH = window.COACH || null, PF = window.Profile || null;
 let tour = null;
@@ -158,7 +211,7 @@ function cardHTML(p, word, o) {
   if (o.heat != null && !o.cover) inner += `<i class="heat" style="transform:scaleX(${o.heat.toFixed(3)})"></i>`;
   if (o.cover) {
     const c = jit(o.seed + ':c' + o.cover, p, o.half ? 2 : 3.2, 2.5);
-    inner += `<span class="cover-tile c-${o.cover}${o.half ? ' half' : ''}${o.noAnim ? ' still' : ' new'}" style="--cx:${c.x}px;--cy:${c.y}px;--cr:${c.r}deg">${coverArt(o.cover)}${o.half ? `<span class="cw">${esc(o.half)}</span>` : `<span class="cw">${esc(word)}</span>`}</span>`;
+    inner += `<span class="cover-tile c-${o.cover}${o.half ? ' half' : ''}${o.noAnim ? ' still' : ' new'}" style="--cx:${c.x}px;--cy:${c.y}px;--cr:${c.r}deg">${coverArt(o.cover, word)}${o.half ? `<span class="cw">${esc(o.half)}</span>` : `<span class="cw">${esc(word)}</span>`}</span>`;
   }
   return `<button class="${cls.join(' ')}" data-pos="${p}" style="--jx:${j.x}px;--jy:${j.y}px;--jr:${j.r}deg;--d:${p};--dc:${2 - (p % 5)};--dr:${Math.floor(p / 5) + 1}" ${o.disabled ? 'disabled' : ''} aria-label="${esc(word)}">${inner}</button>`;
 }

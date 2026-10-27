@@ -7,13 +7,13 @@
 //   own agent revealed    cardFlip, ding   + the card pops
 //   bystander revealed    cardFlip, thud
 //   other team's agent    cardFlip, buzz   + the card shakes
-//   assassin revealed     cardFlip, explosion + the board shakes, the card flashes red
+//   assassin revealed     cardFlip, explosion + the board shakes, the card flashes red, the assassin scene
 //   two-player cover      cardFlip, place  (the pretend opponent's agent is covered)
 //   turn passes           whoosh (soft)    ; when it becomes YOUR turn: turn chime + clue bar pulses
 //   Duet timer token      chip             + "-1" floats off the turns counter
 //   Duet sudden death     alarm
 //   3 agents on one clue  celebrate 'big' at the card
-//   game over             celebrate 'win' (team colours) or 'lose'
+//   game over             celebrate 'win' (team colours) or 'lose'; a win also sweeps a wave over your agents
 
 const COLORS = {
   R: ['#e5544b', '#ff8a80', '#efe6cf', '#f0b354'],
@@ -77,6 +77,8 @@ export function createSfx(FX, ui, opts = {}) {
   let last = null, lastKey = '', lastMine = false;
   const play = (name, vol) => { try { FX.play(name, vol != null && vol !== 1 ? { vol } : undefined); } catch (e) { /* never break the game */ } };
   const anim = (fn, ...a) => { try { const el = a[0]; if (el) FX[fn](...a); } catch (e) { /* ignore */ } };
+  // the big scenes (assassin, win) are drawn by the page: ui.moment(kind, el, team), optional
+  const moment = (kind, el, team) => { try { if (ui.moment) ui.moment(kind, el, team); } catch (e) { /* ignore */ } };
 
   // snap: { pub, myTurn, teams:Set, mine:bool (this phone made the move) }
   function check(snap) {
@@ -114,7 +116,7 @@ export function createSfx(FX, ui, opts = {}) {
               const card = ui.card(e.pos);
               if (e.kind === 'agent') { anim('pop', card); anim('pop', ui.count(e.team)); }
               else if (e.kind === 'enemy') { anim('shake', card); anim('pop', ui.count(e.team === 'R' ? 'B' : 'R')); }
-              else if (e.kind === 'assassin') { anim('shake', ui.board()); anim('flash', card, '#ff5d52'); }
+              else if (e.kind === 'assassin') { anim('shake', ui.board()); anim('flash', card, '#ff5d52'); moment('assassin', card); }
               if (e.kind === 'agent' && e.run === 3 && pub.phase !== 'over') {
                 try { FX.celebrate({ kind: 'big', at: card, colors: COLORS[e.team] }); } catch (x) { /* ignore */ }
               }
@@ -135,6 +137,7 @@ export function createSfx(FX, ui, opts = {}) {
           const kind = outcome(pub, snap.teams);
           const team = pub.variant === 'duet' ? 'G' : kind === 'win' ? (pub.variant === 'coop' ? pub.start : pub.winner) : pub.winner;
           later(() => { try { FX.celebrate({ kind, colors: COLORS[team] || COLORS.G }); } catch (x) { /* ignore */ } }, at + 450);
+          if (kind === 'win') later(() => moment('win', ui.board(), team), at + 300);
           break;
         }
       }

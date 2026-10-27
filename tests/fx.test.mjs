@@ -100,6 +100,25 @@ test('win: celebrate win with team colours, and a big moment at 3 agents on one 
   assert.ok(log.celebrate[1].colors.length >= 2);
 });
 
+test('big moments: the assassin reveal and a win each get their own scene (ui.moment)', () => {
+  const seen = [];
+  const uiM = Object.assign({}, ui, { moment: (kind, el, team) => seen.push([kind, team || null, !!el]) });
+  const play = (code, stepsOf) => {
+    const { FX } = spyFX();
+    const sfx = createSfx(FX, uiM, { later: now });
+    let s = game.setup(2, { variant: 'coop', code }, Math.random, []);
+    const snap = st => ({ pub: game.publicView(st), myTurn: game.toAct(st).includes(1), teams: new Set([st.start]) });
+    sfx.check(snap(s));
+    for (const f of stepsOf(s)) { const [seat, a] = f(s); s = game.apply(s, seat, a); sfx.check(snap(s)); }
+    return s;
+  };
+  play('FXTEST1', () => [s => [0, { type: 'clue', word: 'zebra', n: 1 }], s => [1, { type: 'guess', pos: s.key.indexOf('A') }]]);
+  assert.deepEqual(seen, [['assassin', null, true]]);
+  seen.length = 0;
+  const s = play('FXTEST3', s0 => [s => [0, { type: 'clue', word: 'zebra', n: 9 }], ...s0.key.map((k, p) => (k === s0.start ? p : -1)).filter(p => p >= 0).map(p => () => [1, { type: 'guess', pos: p }])]);
+  assert.deepEqual(seen, [['win', s.start, true]]);
+});
+
 test('Duet: bystander thud, timer token, sudden death alarm', () => {
   const { FX, log } = spyFX(); FX.__log = log;
   const steps = [];
