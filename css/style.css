@@ -354,7 +354,10 @@ table.strength th { color: var(--muted); font-weight: 600; }
   .boardwrap.tbl-surface { gap: 10px; padding: 12px 18px 14px; border-radius: 18px; }
   /* the table fills the column; the board takes all the height left on it at the real card shape (68 x 44):
      width = (height - 4 row gaps) x 68/44 + 4 column gaps */
-  .boardbox { flex: 1; min-height: 0; container-type: size; display: flex; align-items: center; justify-content: center; }
+  /* cards start right under the bar (2026-10-27: a centred board left a ~120 px empty band of wood above it);
+     spare wood falls to your edge, where your plate stands. (Shrinking the wood to hug the board was tried:
+     it breaks the visibility pass's "table fills the column" check and collapses the Links map.) */
+  .boardbox { flex: 1; min-height: 0; container-type: size; display: flex; align-items: flex-start; justify-content: center; padding-top: 4px; }
   .board { gap: 10px 12px; width: min(100cqw, calc((100cqh - 52px) * 1.5455 + 48px)); margin: 0 auto; }
   .card { border-radius: 8px; }
   .card .wtop { gap: 6px; padding: 0 10px; }
@@ -423,3 +426,19 @@ table.strength th { color: var(--muted); font-weight: 600; }
   .cluebar { height: 34px; }
   .cluebar .cw { font-size: 18px; }
 }
+
+/* ---------- sand timers (2026-10-27): Play = while you're to act; Table = start by hand ---------- */
+.cluebar .sand { margin-left: auto; flex: none; display: inline-flex; align-items: center; gap: 3px; padding: 2px 7px 2px 4px; border-radius: 10px; background: rgba(27,45,85,.1); color: #1b2d55; font: 700 13px/1 system-ui, sans-serif; font-variant-numeric: tabular-nums; }
+.cluebar .who:has(+ .sand:last-child) { display: block; min-width: 0; font-size: 13px; line-height: 1.15; color: #3d3628; white-space: normal; text-align: center; overflow: hidden; max-height: 2.3em; flex: 1; }
+.sand svg { width: 16px; height: 16px; }
+.sand.low { color: #a2461c; } .sand.out { color: #c0392b; animation: pulse 1s ease-in-out infinite; }
+.sandrow { display: flex; align-items: center; gap: 8px; margin-top: 10px; padding: 8px 10px; border-radius: var(--r); background: var(--card); border: 1px solid var(--line); flex-wrap: wrap; }
+.sand.big { display: inline-flex; align-items: center; gap: 5px; color: var(--warm); font: 800 20px/1 system-ui, sans-serif; font-variant-numeric: tabular-nums; min-width: 72px; }
+.sand.big svg { width: 22px; height: 22px; }
+.sand.big.run svg { animation: sandflip 1s ease-in-out 1; }
+.sand.big.out { color: #ff6b5e; }
+@keyframes sandflip { from { transform: rotate(180deg); } to { transform: rotate(0); } }
+.fx-still .sand.big.run svg, .fx-still .sand.out { animation: none; }
+@media (prefers-reduced-motion: reduce) { .sand.big.run svg, .sand.out { animation: none; } }
+.setup-head { margin-bottom: 8px; gap: 6px; }
+.btn.pf-open svg { border-radius: 50%; }

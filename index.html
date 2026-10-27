@@ -8,8 +8,15 @@
 <meta name="theme-color" content="#0f1117">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="Codenames">
 <link rel="stylesheet" href="css/table.css?v=1">
-<link rel="stylesheet" href="css/style.css?v=8">
+<link rel="stylesheet" href="css/style.css?v=9">
+<link rel="stylesheet" href="css/profile.css?v=10">
+<link rel="stylesheet" href="css/coach.css?v=10">
 </head>
 <body>
 <div id="app">
@@ -37,6 +44,9 @@
 </div>
 <div id="layer"></div>
 <script src="js/table.js?v=1"></script>
-<script type="module" src="js/app.js?v=9"></script>
+<script src="js/coach.js?v=10"></script>
+<script src="js/profile.js?v=10"></script>
+<script src="js/pwa.js?v=10" data-version="10" defer></script>
+<script type="module" src="js/app.js?v=10"></script>
 </body>
 </html>

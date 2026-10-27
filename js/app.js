@@ -4,8 +4,9 @@ import * as E from './engine.js';
 import { game, setAssoc, setBoardWords, role, seatName, stateFromViews } from './game.js?v=8'; // ?v: Pages caches modules 10 min; a stale game.js would miss new exports
 import './fx.js';
 import { createSfx } from './sfx.js';
+import * as KIT from './kit.js?v=10';
 
-const BUILD = '2026-10-21.1';
+const BUILD = '2026-10-27.1';
 const LS = 'codenames:v1';
 const $ = (s, el = document) => el.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -23,6 +24,8 @@ const ART = {
   person: '<svg viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="20" cy="14" r="6"/><path d="M8 34c0-7 5.4-11 12-11s12 4 12 11"/></svg>',
   teams: '<svg viewBox="0 0 40 40"><circle cx="13" cy="14" r="5" fill="#e5544b"/><path d="M4 32c0-6 4-9.5 9-9.5s9 3.5 9 9.5z" fill="#e5544b"/><circle cx="27" cy="14" r="5" fill="#4d8dff"/><path d="M18 32c0-6 4-9.5 9-9.5s9 3.5 9 9.5z" fill="#4d8dff"/></svg>',
   duet: '<svg viewBox="0 0 40 40"><circle cx="14" cy="14" r="5" fill="#3fb35f"/><path d="M5 32c0-6 4-9.5 9-9.5s9 3.5 9 9.5z" fill="#3fb35f"/><circle cx="26" cy="14" r="5" fill="#2e8a49"/><path d="M17 32c0-6 4-9.5 9-9.5s9 3.5 9 9.5z" fill="#2e8a49"/></svg>',
+  sand: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12M6 21h12" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" fill="none"/><path d="M7.5 3.5c0 5 4.5 6 4.5 8.5S7.5 15.5 7.5 20.5h9c0-5-4.5-6-4.5-8.5s4.5-3.5 4.5-8.5z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M9.6 19.4c.6-2 1.6-2.7 2.4-3.1.8.4 1.8 1.1 2.4 3.1z" fill="#e9c27a"/><path d="M9.5 6.5h5c-.5 1.6-1.6 2.4-2.5 3-.9-.6-2-1.4-2.5-3z" fill="#e9c27a"/></svg>',
+  daily: '<svg viewBox="0 0 40 40" fill="none" stroke="#f0b354" stroke-width="2.2"><rect x="7" y="9" width="26" height="24" rx="4"/><path d="M7 16h26M14 6v6M26 6v6"/><path d="M15 24l4 4 7-8" stroke-linecap="round" stroke-linejoin="round"/></svg>',
   globe: '<svg viewBox="0 0 40 40" fill="none" stroke="#6ea8fe" stroke-width="2.2"><circle cx="20" cy="20" r="13"/><path d="M7 20h26M20 7c4 4 5.5 8.5 5.5 13S24 29 20 33M20 7c-4 4-5.5 8.5-5.5 13S16 29 20 33"/></svg>',
 };
 const coverArt = c => (c === 'A' ? ART.assassin : c === 'N' ? ART.bystander : ART.agent);
@@ -30,8 +33,8 @@ const coverArt = c => (c === 'A' ? ART.assassin : c === 'N' ? ART.bystander : AR
 // ------------------------------------------------------------------ saved state
 function defaults() {
   return {
-    tab: 'table',
-    settings: { style: 'normal', odds: true, heat: true, duetTimer: 9, name: '' },
+    tab: 'play', // a first visit opens on Play (the Table companion is one tap away)
+    settings: { style: 'normal', odds: true, heat: true, duetTimer: 9, name: '', turnTimer: 0 },
     table: { variant: 'classic', code: '', revealed: Array(25).fill(false), order: [], spy: false, team: null, side: 'A', marks: Array(25).fill(0) },
     play: null,
     setup: { pick: 'guess', seats: ['human', 'human', 'computer', 'computer'], duetPartner: 'computer', onlineVariant: 'classic', onlineSeats: 4 },
@@ -67,6 +70,43 @@ const sfx = createSfx(FX, {
   count: t => document.querySelector(`#tab-play .astack.${t === 'B' ? 'B' : 'R'}`),
   timer: () => document.querySelector('#tab-play .turnline b'),
 });
+// ------------------------------------------------------------------ shared kits: rules + guided game (js/coach.js), My stats (js/profile.js)
+const COACH = window.COACH || null, PF = window.Profile || null;
+let tour = null;
+if (PF) {
+  try {
+    PF.init({
+      game: 'codenames', levels: KIT.LEVELS, achievements: KIT.ACHIEVEMENTS,
+      modes: { computer: { name: 'Two teams vs computer' }, help: { name: 'Two teams, with help' }, guess: { name: 'You guess' }, give: { name: 'You give clues' }, duet: { name: 'Duet' }, pass: { name: 'Pass the phone' }, online: { hide: true } },
+      daily: { title: 'Daily puzzle', onPlay: () => startDaily() },
+      onChange: what => { if ((what === 'me' || what === 'import' || what === 'result') && S.tab === 'play' && !S.play) renderPlay(); },
+    });
+  } catch (e) { /* stats are optional */ }
+}
+const isTutorial = () => !!(S.play && S.play.kind === 'local' && S.play.tutorial);
+if (COACH) {
+  tour = COACH.tour({
+    id: KIT.TUTORIAL.id,
+    steps: KIT.tutorialSteps({ snap: () => (isTutorial() ? currentSnap() : null) }),
+    pauseIf: () => S.tab !== 'play' || !isTutorial() || !!document.querySelector('#layer .sheet-back, #layer .cover') || (PF && PF.isOpen()),
+  });
+}
+function openRules(open) { if (COACH) { closeSheet(); COACH.rules({ ...KIT.rules(), open }); } }
+function startTutorial() {
+  if (!tour) return;
+  if (!ASSOC) return toast('Word links still loading');
+  COACH.closeOffer();
+  tour.reset();
+  startLocal('coop', ['computer', 'human'], { code: KIT.TUTORIAL.code, style: 'normal', tutorial: true });
+  if (S.tab !== 'play') goTab('play');
+  tour.start();
+}
+function offerTutorial() {
+  if (!tour || S.tab !== 'play' || S.play || tour.seen() || tour.saved() || COACH.offered(KIT.TUTORIAL.id)) return;
+  if (PF && PF.stats().games > 0) return; // played here before: not new
+  COACH.offer({ id: KIT.TUTORIAL.id, title: 'New to Codenames?', text: 'Play one guided game: the computer gives the clues, you guess.', yes: 'Show me', no: 'No thanks', onYes: startTutorial });
+}
+
 let tapAt = 0; // when this phone last made a move (its own sounds play at full volume)
 function fxCheck() {
   const snap = currentSnap();
@@ -307,6 +347,7 @@ const HELP = {
   style: ['Clue style', 'Safe gives clues only when its words are clearly closer than every wrong word, so fewer words per clue. Bold links more words and takes more risk.'],
   links: ['Word links', 'Lines join pairs of board words that the word data puts close together. Thick lines are the strongest links: a good clue usually sits between words that are linked.'],
   heat: ['Board heat', 'While you type a clue, a gold bar under each word shows how close it is to your clue.'],
+  sand: ['Turn timer', 'A sand timer for the person whose turn it is, in games on this phone. It only counts down and chimes when time is up; nothing happens to the turn. The Table tab has its own timer to start by hand.'],
   coop: ['Two-player rules', 'From the rulebook: your team plays a pretend opponent. After each of your turns, your spymaster covers one of their agents. Win before all 8 are covered; your score is how many of theirs are left.'],
 };
 
@@ -358,6 +399,7 @@ function renderTable() {
         <div class="row" style="margin-top:8px"><button class="btn small" data-act="table-undo" ${t.order.length ? '' : 'disabled'}>Undo</button><button class="btn small" data-act="code">New board</button></div>`;
     }
   }
+  panel += tableClockHTML();
   const boardKey = `t:${t.variant}:${t.code}:${duet ? t.side : ''}`;
   const words = wordsOf(b.words);
   const bHTML = boardHTML(boardKey, words, p => {
@@ -447,9 +489,12 @@ function localSnap() {
 }
 function localAct(seat, action) {
   const P = S.play;
+  const before = P.state;
   try {
     P.state = game.apply(clone(P.state), seat, clone(action));
   } catch (e) { FX.play('error'); toast(e.message); return false; }
+  // Undo (one person at the phone): the state before each of your moves; the computer's replies come off with it
+  if (canUndo()) { P.undo = (P.undo || []).concat([before]).slice(-30); }
   save(); renderAll(); scheduleBots();
   return true;
 }
@@ -479,11 +524,110 @@ function scheduleBots() {
 }
 function stopGame() { gen++; clearTimeout(botTimer); botTimer = null; hint = null; }
 
+// ------------------------------------------------------------------ Undo, results, replay (local games)
+const humansIn = P => (P && P.seats ? P.seats.filter(k => k === 'human').length : 0);
+// Undo only with one person at the phone (pass-the-phone would show the next player's view) and not after the end
+function canUndo() { const P = S.play; return !!(P && P.kind === 'local' && humansIn(P) === 1 && !game.isOver(P.state)); }
+function undoMove() {
+  const P = S.play;
+  if (!canUndo() || !P.undo || !P.undo.length) return;
+  stopGame();
+  P.state = P.undo.pop();
+  P.helped = true; // a game with Undo isn't rated
+  const h = P.state.history.length;
+  for (const k of Object.keys(P.ratings || {})) if (+k >= h) delete P.ratings[k];
+  draft.play = { word: '', n: 1 };
+  sfx.check(null); // the game went back: no "new move" sounds for it
+  save(); renderAll(); scheduleBots();
+  FX.play('cardSlide');
+  if (COACH) COACH.emit('undo');
+}
+function myTeamOf(P) {
+  const st = P.state;
+  if (st.variant !== 'classic') return st.start;
+  const i = P.seats.indexOf('human');
+  return i < 0 ? null : role(st, i).team;
+}
+// once per game, when it ends: My stats (shared _profile kit)
+function recordIfOver() {
+  const P = S.play;
+  if (!P || P.kind !== 'local' || P.recorded || !game.isOver(P.state)) return;
+  P.recorded = true; save();
+  if (!PF) return;
+  try {
+    PF.recordResult(KIT.result({ seats: P.seats, pub: game.publicView(P.state), myTeam: myTeamOf(P), style: P.state.style, helped: !!(P.helped || P.hints), daily: !!P.daily }));
+  } catch (e) { /* stats are optional */ }
+}
+function startDaily() {
+  if (!ASSOC) return toast('Word links still loading');
+  const day = PF ? PF.daily.date() : new Date().toISOString().slice(0, 10);
+  const rng = PF ? PF.daily.rng(day) : Math.random;
+  if (PF) PF.closePanel();
+  startLocal('coop', ['computer', 'human'], { rng, style: 'normal', daily: day });
+  if (S.tab !== 'play') goTab('play');
+}
+async function shareDaily() {
+  const P = S.play;
+  if (!P || !P.daily) return;
+  const text = KIT.shareLine(P.daily, game.publicView(P.state)) + '\n' + location.href.split(/[?#]/)[0];
+  try {
+    if (navigator.share && matchMedia('(pointer: coarse)').matches) { await navigator.share({ text }); return; }
+    await navigator.clipboard.writeText(text); toast('Copied. Paste it anywhere.');
+  } catch (e) {
+    if (e && e.name === 'AbortError') return;
+    sheet(`<h2>Your result</h2><textarea readonly style="width:100%;height:150px;font:inherit;background:var(--bg-soft);color:var(--text);border:1px solid var(--line);border-radius:10px;padding:8px">${esc(text)}</textarea><div class="btns"><span></span><button class="btn main" id="ok">OK</button></div>`, sh => { $('#ok', sh).onclick = closeSheet; sh.querySelector('textarea').select(); });
+  }
+}
+
+// ------------------------------------------------------------------ sand timers (advisory, like the one in the box)
+// Play: counts down while a person at this phone is to act (Settings -> Turn timer). Table: a timer to flip by hand.
+const clock = { play: { key: '', end: 0, fired: false }, table: { running: false, end: 0, left: 0, len: 0 } };
+const fmtClock = ms => { const s = Math.max(0, Math.ceil(ms / 1000)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };
+const turnClock = {
+  reset() { clock.play.key = ''; },
+  // returns the timer's html for this moment of the game, or '' when it's off / not a person's turn here
+  html(key) {
+    const len = S.settings.turnTimer || 0;
+    if (!len || !key) { clock.play.key = ''; return ''; }
+    if (clock.play.key !== key) { clock.play.key = key; clock.play.end = Date.now() + len * 1000; clock.play.fired = false; }
+    const left = clock.play.end - Date.now();
+    return `<span class="sand${left <= 0 ? ' out' : left < 10500 ? ' low' : ''}" data-clock="play" aria-label="Time left">${ART.sand}<b>${fmtClock(left)}</b></span>`;
+  },
+};
+function tableClockLen() { return S.table.sand || 60; }
+function tableClockHTML() {
+  const c = clock.table, len = tableClockLen();
+  const left = c.running ? c.end - Date.now() : (c.len === len && c.left > 0 ? c.left : len * 1000);
+  return `<div class="sandrow"><span class="sand big${c.running ? ' run' : ''}${c.running && left <= 0 ? ' out' : ''}" data-clock="table">${ART.sand}<b>${fmtClock(left)}</b></span>
+    <div class="seg" role="group" aria-label="Timer length">${[30, 60, 120].map(v => `<button data-act="sandlen" data-v="${v}" class="${len === v ? 'on' : ''}">${v < 60 ? v + 's' : v / 60 + ' min'}</button>`).join('')}</div>
+    <span class="grow"></span><button class="btn small${c.running ? '' : ' main'}" data-act="sand">${c.running ? 'Stop' : left < len * 1000 ? 'Go on' : 'Start'}</button>${c.running || left < len * 1000 ? '<button class="btn small" data-act="sandreset">Reset</button>' : ''}</div>`;
+}
+setInterval(() => {
+  const now = Date.now();
+  const p = document.querySelector('[data-clock=play]');
+  if (p && clock.play.key) {
+    const left = clock.play.end - now;
+    p.querySelector('b').textContent = fmtClock(left);
+    p.classList.toggle('low', left > 0 && left < 10500); p.classList.toggle('out', left <= 0);
+    if (left <= 0 && !clock.play.fired) { clock.play.fired = true; FX.play('alarm'); toast("Time's up"); }
+  }
+  const c = clock.table;
+  if (c.running) {
+    const left = c.end - now, t = document.querySelector('[data-clock=table]');
+    if (t) { t.querySelector('b').textContent = fmtClock(left); t.classList.toggle('out', left <= 0); }
+    if (left <= 0) { c.running = false; c.left = 0; c.len = tableClockLen(); FX.play('alarm'); toast("Time's up"); if (S.tab === 'table') renderTable(); }
+  }
+}, 250);
+
+// extra: { code, style, rng } fix the board / clue style (guided game, Daily puzzle); anything else is kept on S.play
 function startLocal(variant, seats, extra = {}) {
   stopGame();
-  const options = { variant, style: S.settings.style, timer: S.settings.duetTimer };
-  const st = game.setup(seats.length, options, Math.random, seats.map(k => ({ kind: k })));
-  S.play = { kind: 'local', variant, seats, state: st, lastSeat: null, shown: null, ratings: {}, hints: 0, ...extra };
+  const { code, style, rng, ...keep } = extra;
+  const options = { variant, style: style || S.settings.style, timer: S.settings.duetTimer, code };
+  const st = game.setup(seats.length, options, rng || Math.random, seats.map(k => ({ kind: k })));
+  S.play = { kind: 'local', variant, seats, state: st, lastSeat: null, shown: null, ratings: {}, hints: 0, undo: [], id: Date.now().toString(36), ...keep };
+  if (COACH) COACH.closeOffer();
+  turnClock.reset();
   draft.play = { word: '', n: 1 };
   dealPending = true;
   save(); renderAll(); scheduleBots();
@@ -518,6 +662,10 @@ function renderPlay() {
   const seat = snap.mySeat;
   const duet = pub.variant === 'duet';
   const over = pub.phase === 'over';
+  if (over) recordIfOver();
+  // end-of-game replay (local games): the board as it was after turn rp, that turn's picks marked
+  const rp = over && S.play.kind === 'local' && S.play.replay != null ? Math.min(S.play.replay, pub.history.length - 1) : null;
+  const rpCover = rp == null ? null : replayCovers(pub, rp);
 
   // pass-the-phone cover (local only): hide secrets while the phone changes hands
   if (S.play.kind === 'local' && !over) {
@@ -560,9 +708,14 @@ function renderPlay() {
   const actorName = over ? '' : who(pub, snap);
   const thinking = !over && (snap.toAct || []).some(i => snap.seats[i]?.kind === 'computer');
   const barCls = `cluebar${over ? '' : duet ? ' t-G' : ` t-${turnTeam}`}${thinking ? ' think' : ''}`;
-  const banner = pub.clue
-    ? `<div class="${barCls}"><span class="who">${over ? 'Last clue' : duet ? 'Clue' : `<i class="dot ${turnTeam}"></i>`}</span><span class="cw">${esc(pub.clue.word)}</span><span class="cn">${pub.clue.n < 0 ? '∞' : pub.clue.n}</span>${!duet && !over ? `<span class="who">${pub.guessesLeft >= 99 ? 'no limit' : pub.guessesLeft + ' left'}</span>` : ''}</div>`
-    : `<div class="${barCls}"><span class="who">${over ? 'Game over' : esc(actorName)}</span></div>`;
+  // sand timer: while a person at this phone is to act (local games, Settings -> Turn timer)
+  const sand = S.play.kind === 'local' && !over && myTurn && S.play.seats[seat] === 'human' ? turnClock.html(`${S.play.id}:${pub.history.length}:${pub.phase}:${seat}`) : turnClock.html('');
+  const rh = rp != null ? pub.history[rp] : null;
+  const banner = rh
+    ? `<div class="cluebar${rh.team && !rh.dummy ? ' t-' + rh.team : duet ? ' t-G' : ''}"><span class="who">${rh.dummy ? 'Their turn' : rh.penalty ? 'Penalty' : rh.sudden ? 'Sudden death' : duet ? 'Clue' : `<i class="dot ${rh.team}"></i>`}</span>${rh.clue != null ? `<span class="cw">${esc(rh.clue)}</span><span class="cn">${rh.n < 0 ? '∞' : rh.n}</span>` : ''}</div>`
+    : pub.clue
+    ? `<div class="${barCls}"><span class="who">${over ? 'Last clue' : duet ? 'Clue' : `<i class="dot ${turnTeam}"></i>`}</span><span class="cw">${esc(pub.clue.word)}</span><span class="cn">${pub.clue.n < 0 ? '∞' : pub.clue.n}</span>${!duet && !over ? `<span class="who">${pub.guessesLeft >= 99 ? 'no limit' : pub.guessesLeft + ' left'}</span>` : ''}${sand}</div>`
+    : `<div class="${barCls}"><span class="who">${over ? 'Game over' : esc(actorName)}</span>${sand}</div>`;
 
   // ---- what can I tap?
   let tapMode = null; // 'guess' | 'cover' | 'sd'
@@ -582,6 +735,13 @@ function renderPlay() {
   const coverTeam = pub.phase === 'dummy' ? (pub.turn) : pub.turn;
   const bHTML = boardHTML(boardKey, pub.w, p => {
     let cover = null, half = null, tint = null, disabled = true, pick = false;
+    if (rpCover) {
+      const c = rpCover.cover[p];
+      if (c) { cover = c === 'Nh' ? 'N' : c; if (c === 'Nh') half = 'Bystander'; }
+      else if (!duet && pub.key) tint = pub.key[p];
+      else if (duet) { const a = pub.keyA[p], b2 = pub.keyB[p]; tint = a === 'A' || b2 === 'A' ? 'A' : (a === 'G' || b2 === 'G') ? 'G' : null; }
+      return { cover, half, tint, disabled, pick: rpCover.now.has(p) };
+    }
     if (duet) {
       if (pub.found[p]) cover = 'G';
       else if (pub.byst[p]) { cover = 'N'; half = pub.byst[p].split('').map(x => (x === myRole.side ? 'You' : 'Partner')).join('+'); }
@@ -603,7 +763,8 @@ function renderPlay() {
 
   // ---- panel
   let panel = '';
-  if (over) panel = reviewHTML(pub, myRole);
+  if (rp != null) panel = replayHTML(pub, rp);
+  else if (over) panel = reviewHTML(pub, myRole);
   else if (iGive) {
     panel = `<h3>Your clue</h3>${clueInput('play', 'One word')}
       <div class="row" style="margin-top:10px"><button class="btn main" data-act="give" ${!draft.play.word || odds?.bad ? 'disabled' : ''}>Give clue</button><button class="btn" data-act="idea" data-ctx="play">${ART.robot.replace('<svg', '<svg width="16" height="16"')}Idea</button></div>${S.settings.odds ? odds.html : (odds.bad ? odds.html : '')}`;
@@ -617,8 +778,9 @@ function renderPlay() {
   } else {
     panel = pub.clue ? `<div class="row muted"><span>${esc(actorName)}</span></div>` : '';
   }
-  panel += logHTML(pub, boardIdx);
-  panel += `<div class="row" style="margin-top:12px"><button class="btn small" data-act="quit">${over ? 'New game' : 'Quit game'}</button>${S.play.kind === 'online' ? `<span class="small muted">Room <b style="color:var(--warm)">${esc(snap.code)}</b></span>` : ''}</div>`;
+  if (rp == null) panel += logHTML(pub, boardIdx);
+  const undoBtn = canUndo() ? `<button class="btn small" data-act="undo" ${S.play.undo && S.play.undo.length ? '' : 'disabled'}>Undo</button>` : '';
+  if (rp == null) panel += `<div class="row" style="margin-top:12px"><button class="btn small" data-act="quit">${over ? 'New game' : 'Quit game'}</button>${undoBtn}${S.play.daily ? `<span class="small muted">Daily puzzle · ${esc(S.play.daily)}</span>` : ''}${S.play.kind === 'online' ? `<span class="small muted">Room <b style="color:var(--warm)">${esc(snap.code)}</b></span>` : ''}</div>`;
 
   keepFocus(el, () => {
     el.innerHTML = `<div class="stage"><div class="boardwrap tbl-surface tbl-wood-dark">${across ? `<div class="across">${across}</div>` : ''}<div class="slips">${leftStack}${banner}${rightStack}</div>${bHTML}${myEdge}</div><div class="panel">${panel}</div></div>`;
@@ -632,6 +794,25 @@ function renderPlay() {
   fitText(el);
   flyCovers(el);
   fxCheck();
+  if (COACH && isTutorial()) COACH.update(); // the guided game's steps follow the board at once
+}
+
+// which word had which cover after turn `upto` of a finished game; `now` = that turn's picks
+function replayCovers(pub, upto) {
+  const cover = Array(25).fill(null), now = new Set();
+  pub.history.slice(0, upto + 1).forEach((h, i) => h.guesses.forEach(g => {
+    cover[g.pos] = pub.variant === 'duet' ? (g.color === 'N' ? (cover[g.pos] || 'Nh') : g.color) : g.color;
+    if (i === upto) now.add(g.pos);
+  }));
+  return { cover, now };
+}
+function replayHTML(pub, rp) {
+  const h = pub.history[rp], n = pub.history.length;
+  const what = h.dummy ? 'The other side covered one of theirs' : h.penalty ? 'Penalty: a cover' : h.sudden ? `Sudden death: Player ${esc(h.guesser)} pointed` : `${h.team ? teamName(h.team) : 'Player ' + esc(h.giver)} clue <b>${esc(String(h.clue).toUpperCase())} ${h.n < 0 ? '∞' : h.n}</b>`;
+  const res = h.guesses.map(g => `<span class="tag ${g.color}">${esc(pub.w[g.pos])}</span>`).join('');
+  const meant = h.targets && h.targets.length ? `<p class="small muted" style="margin-top:6px">Meant: ${h.targets.map(p => `<span class="tag">${esc(pub.w[p])}</span>`).join(' ')}</p>` : '';
+  return `<div class="result" style="text-align:left"><span class="small muted">Replay · turn ${rp + 1} of ${n}</span><p style="margin-top:4px">${what}</p><div class="wordlist" style="margin-top:6px">${res || '<span class="muted small">no guess</span>'}</div>${meant}</div>
+    <div class="row" style="margin-top:10px"><button class="btn" data-act="rp" data-v="-1" ${rp ? '' : 'disabled'} aria-label="Previous turn">◀ Back</button><button class="btn main" data-act="rp" data-v="1" ${rp < n - 1 ? '' : 'disabled'} aria-label="Next turn">Next ▶</button><span class="grow"></span><button class="btn small" data-act="rpclose">Done</button></div>`;
 }
 
 function roleFromPub(pub, seat) {
@@ -705,6 +886,7 @@ function reviewHTML(pub, myRole) {
   const lines = Object.entries(rs).map(([i, r]) => `<div class="log-row"><span class="lc">${esc(r.clue)} ${r.n}</span><span class="small">expected ${r.exp.toFixed(1)} right${r.alt ? ` · computer: <b>${esc(r.alt.clue.toUpperCase())} ${r.alt.n}</b> (${r.alt.exp.toFixed(1)})` : ''}</span>${r.alt ? `<span class="tag" style="color:${scaleColor(1 - Math.max(0, r.alt.exp - r.exp) / 1.5)}">${r.alt.exp > r.exp ? '−' + (r.alt.exp - r.exp).toFixed(1) : 'best'}</span>` : ''}</div>`).join('');
   if (lines) html += `<h3>Your clues</h3><div class="log">${lines}</div>`;
   if (S.play.kind === 'local' && S.play.hints) html += `<p class="small muted" style="margin-top:6px">Hints used: ${S.play.hints}</p>`;
+  if (S.play.kind === 'local' && pub.history.length) html += `<div class="row" style="margin-top:10px"><button class="btn" data-act="rp" data-v="start">Replay the game</button>${S.play.daily ? '<button class="btn main" data-act="share">Share result</button>' : ''}${PF ? `<button class="btn small pf-open" data-act="mystats">${PF.avatarSVG(PF.avatar, 20)}My stats</button>` : ''}</div>`;
   return html;
 }
 
@@ -734,18 +916,27 @@ function renderSetup(el) {
     extra = onlineSetupHTML();
   }
   el.innerHTML = `<div class="stage"><div class="panel setup" style="flex:1;max-width:560px;margin:0 auto;width:100%">
-    <h3>New game</h3>
+    <div class="row setup-head"><h3 style="margin:0">New game</h3><span class="grow"></span>${COACH ? '<button class="btn small" data-act="rules">Rules</button>' : ''}${PF ? `<button class="btn small pf-open" data-act="mystats">${PF.avatarSVG(PF.avatar, 20)}My stats</button>` : ''}</div>
     <div class="choices">
       ${opt('guess', ART.person.replace('<svg', '<svg style="color:#6ea8fe"'), 'You guess', 'Computer spymaster gives you clues')}
       ${opt('give', ART.robot.replace('<svg', '<svg style="color:#f0b354"'), 'You give clues', 'Computer guesses, you see the odds')}
       ${opt('teams', ART.teams, 'Two teams', 'Full rules, any seat a computer')}
       ${opt('duet', ART.duet, 'Duet', 'Co-op, 15 agents, 9 turns')}
       ${opt('online', ART.globe, 'Online room', 'Friends join with a code')}
+      ${dailyChoice()}
     </div>
     ${extra}
     ${su.pick !== 'online' ? `<div class="row go-row"><button class="btn main" data-act="start" ${ASSOC ? '' : 'disabled'}>${ASSOC ? 'Start' : 'Loading word links…'}</button>
       ${su.pick === 'guess' || su.pick === 'give' ? '<span class="small muted">Two-player rules <button class="q" data-help="coop">?</button></span>' : ''}</div>` : ''}
   </div></div>`;
+}
+
+// Daily puzzle: today's board and the same computer spymaster for everyone (shared _profile kit's daily seed)
+function dailyChoice() {
+  if (!PF) return '';
+  const day = PF.daily.date(), done = PF.daily.played(day), st = PF.daily.streak();
+  const sub = done ? `Done today${st.cur > 1 ? ` · ${st.cur}-day streak` : ''}` : 'Same board for everyone today';
+  return `<button class="choice" data-act="daily">${ART.daily}<div><b>Daily puzzle</b><span>${sub}</span></div></button>`;
 }
 
 function startPicked() {
@@ -907,6 +1098,8 @@ function renderSettings() {
     ${sw('odds', 'Show odds')}
     ${sw('heat', 'Board heat', 'heat')}
     <div class="set-row"><span class="lab">Duet turns</span><div class="seg">${[9, 10, 11].map(n => `<button data-act="timer" data-v="${n}" class="${st.duetTimer === n ? 'on' : ''}">${n}</button>`).join('')}</div></div>
+    <div class="set-row"><span class="lab">Turn timer <button class="q" data-help="sand">?</button></span><div class="seg">${[[0, 'Off'], [60, '1 min'], [120, '2 min'], [180, '3 min']].map(([n, l]) => `<button data-act="turntimer" data-v="${n}" class="${(st.turnTimer || 0) === n ? 'on' : ''}">${l}</button>`).join('')}</div></div>
+    <div class="row" style="margin:12px 0 4px">${COACH ? '<button class="btn small" data-act="rules">Rules</button><button class="btn small" data-act="tutorial">Replay tutorial</button>' : ''}${PF ? `<button class="btn small pf-open" data-act="mystats">${PF.avatarSVG(PF.avatar, 20)}My stats</button>` : ''}</div>
     <div class="set-row"><span class="lab">How strong? <button class="q" data-help="strength">?</button></span><span class="small muted">measured</span></div>
     ${strengthTable()}
     <h3 style="margin-top:16px">Sound &amp; effects</h3><div id="fxSet"></div>
@@ -1029,6 +1222,27 @@ document.addEventListener('click', e => {
     case 'toggle': S.settings[v] = !S.settings[v]; save(); renderSettings(); break;
     case 'timer': S.settings.duetTimer = +v; save(); renderSettings(); break;
     case 'lookup': links.word = v; renderLinks(); break;
+    case 'undo': undoMove(); break;
+    case 'rp': {
+      const n = currentSnap()?.pub?.history.length || 0;
+      S.play.replay = v === 'start' ? 0 : Math.max(0, Math.min(n - 1, (S.play.replay || 0) + +v));
+      save(); renderPlay(); FX.play('cardSlide'); break;
+    }
+    case 'rpclose': S.play.replay = null; save(); renderPlay(); break;
+    case 'share': shareDaily(); break;
+    case 'mystats': if (PF) PF.openPanel(); break;
+    case 'daily': startDaily(); break;
+    case 'rules': openRules(v); break;
+    case 'tutorial': startTutorial(); break;
+    case 'turntimer': S.settings.turnTimer = +v; turnClock.reset(); save(); renderSettings(); break;
+    case 'sandlen': S.table.sand = +v; Object.assign(clock.table, { running: false, left: 0, len: 0 }); save(); renderTable(); break;
+    case 'sand': {
+      const c = clock.table, len = tableClockLen();
+      if (c.running) { c.running = false; c.left = Math.max(0, c.end - Date.now()); c.len = len; }
+      else { const left = c.len === len && c.left > 0 ? c.left : len * 1000; c.running = true; c.end = Date.now() + left; FX.play('cardSlide'); }
+      renderTable(); break;
+    }
+    case 'sandreset': Object.assign(clock.table, { running: false, left: 0, len: 0 }); renderTable(); break;
   }
 });
 
@@ -1130,9 +1344,25 @@ window.addEventListener('storage', e => {
   renderAll(); scheduleBots();
 });
 document.addEventListener('visibilitychange', () => { if (!document.hidden) scheduleBots(); });
-window.addEventListener('popstate', e => { if (e.state && e.state.tab) { S.tab = e.state.tab; save(); closeSheet(); renderAll(); } });
+window.addEventListener('popstate', e => {
+  // Back closes the rules sheet or My stats first
+  if (COACH && COACH.rulesOpen()) { COACH.closeRules(); try { history.pushState({ tab: S.tab }, ''); } catch (x) {} return; }
+  if (PF && PF.isOpen()) { PF.closePanel(); try { history.pushState({ tab: S.tab }, ''); } catch (x) {} return; }
+  if (e.state && e.state.tab) { S.tab = e.state.tab; save(); closeSheet(); renderAll(); }
+});
+// home-screen app (shared _pwa kit): a new deploy reloads by itself only when nothing would be lost
+if (window.PWA) window.PWA.safeToReload = () => {
+  const ae = document.activeElement;
+  if (document.querySelector('#layer .sheet-back, #layer .cover') || (COACH && COACH.rulesOpen()) || (PF && PF.isOpen())) return false;
+  if (ae && /^(INPUT|SELECT|TEXTAREA)$/.test(ae.tagName)) return false;
+  if (S.play && S.play.kind === 'online') return false;
+  if (botTimer || clock.table.running) return false;
+  // mid-game on the Play tab waits (the pill shows); a finished game or another tab is a resting point
+  return S.tab !== 'play' || !S.play || game.isOver(S.play.state);
+};
 
-loadData().catch(e => { $('#tab-table').innerHTML = `<div class="stage"><div class="msg bad">Couldn't load the word list (${esc(e.message)}). Check your connection and reload.</div></div>`; });
+if (tour && isTutorial() && !game.isOver(S.play.state)) tour.resume(); // carry on after a reload
+loadData().then(() => offerTutorial()).catch(e => { $('#tab-table').innerHTML = `<div class="stage"><div class="msg bad">Couldn't load the word list (${esc(e.message)}). Check your connection and reload.</div></div>`; });
 renderAll();
 if (online == null) {
   try { if (localStorage.getItem('online.codenames')) ensureOnline().then(o => o.resume()).then(ok => { if (ok) { S.play = { kind: 'online' }; S.tab = 'play'; save(); renderAll(); } }); } catch (e) {}

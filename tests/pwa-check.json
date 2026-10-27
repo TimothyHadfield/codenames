@@ -1,0 +1,10 @@
+{
+  "repo": "codenames",
+  "ready": "!!document.querySelector('#tab-play.on') && !!(document.querySelector('[data-act=start]:not([disabled])') || document.querySelector('#tab-play .board'))",
+  "play": [
+    "(async () => { const w = ms => new Promise(r => setTimeout(r, ms)); const st = () => JSON.parse(localStorage.getItem('codenames:v1') || '{}').play; if (!st()) { document.querySelector('[data-act=pick][data-v=guess]').click(); await w(50); document.querySelector('[data-act=start]').click(); } for (let i = 0; i < 100; i++) { const p = st(); if (p && p.state && p.state.phase === 'guess') break; await w(100); } const s = st().state; window.__g0 = s.history.reduce((n, h) => n + h.guesses.length, 0); const pos = s.key.findIndex((k, j) => k === s.start && !s.revealed[j]); document.querySelector('#tab-play .card[data-pos=\"' + pos + '\"]').click(); })()"
+  ],
+  "played": "(() => { const p = JSON.parse(localStorage.getItem('codenames:v1') || '{}').play; return !!p && p.state.phase !== 'over' && p.state.history.reduce((n, h) => n + h.guesses.length, 0) > window.__g0; })()",
+  "safe": "document.querySelector('.tabs [data-tab=settings]').click()",
+  "debug": "JSON.stringify((() => { const p = JSON.parse(localStorage.getItem('codenames:v1') || '{}').play; return p ? { phase: p.state.phase, h: p.state.history.length, g0: window.__g0 } : null; })())"
+}
