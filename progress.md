@@ -90,6 +90,7 @@ Change 10-27: Normal/Bold keep a wider berth round the assassin (`assPad`) and c
 Computer team vs computer team (`tools/head2head.mjs`, 400 games per pair, colours swapped): Normal beats Safe 68.3% (+133 Elo), Bold beats Normal 80.3% (+244). My stats levels: Safe 1200, Normal 1333, Bold 1577.
 
 ## Traps
+- **online.js cache stamp (2026-10-27):** every import of `js/online.js` uses `?v=a3d0418b`, the `_online` content stamp. After a re-copy: put the new stamp from `node ../_online/tools/stamp.mjs` there, bump the importing file's `?v=` (and pwa.js `data-version`), then `node ../_online/tools/stamp.mjs --check .` must say OK.
 - Changing `tools/board-words.txt` changes every seeded board (bump VERSION in both `build_assoc.py` and `engine.js`, update the pinned FROG snapshot test).
 - `node --test tests/` fails on Windows; use `node --test`.
 - Port 8231 is used by other agents' servers; this project used 8673 for local checks.

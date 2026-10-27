@@ -1039,7 +1039,7 @@ function onlineSetupHTML() {
 
 async function ensureOnline() {
   if (online) return online;
-  const mod = await import('./online.js');
+  const mod = await import('./online.js?v=a3d0418b');
   online = mod.createOnline({ game, gameId: 'codenames', botDelayMs: 900 });
   online.on('change', snap => {
     osnap = snap;
