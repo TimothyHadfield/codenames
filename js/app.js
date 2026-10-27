@@ -4,9 +4,9 @@ import * as E from './engine.js';
 import { game, setAssoc, setBoardWords, role, seatName, stateFromViews } from './game.js?v=8'; // ?v: Pages caches modules 10 min; a stale game.js would miss new exports
 import './fx.js';
 import { createSfx } from './sfx.js';
-import * as KIT from './kit.js?v=10';
+import * as KIT from './kit.js?v=11';
 
-const BUILD = '2026-10-27.2';
+const BUILD = '2026-10-27.3';
 const LS = 'codenames:v1';
 const $ = (s, el = document) => el.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -130,7 +130,7 @@ if (PF) {
   try {
     PF.init({
       game: 'codenames', levels: KIT.LEVELS, achievements: KIT.ACHIEVEMENTS,
-      modes: { computer: { name: 'Two teams vs computer' }, help: { name: 'Two teams, with help' }, guess: { name: 'You guess' }, give: { name: 'You give clues' }, duet: { name: 'Duet' }, pass: { name: 'Pass the phone' }, online: { hide: true } },
+      modes: { computer: { name: 'Two teams vs computer' }, help: { name: 'With Hint or Undo' }, guess: { name: 'You guess' }, give: { name: 'You give clues' }, duet: { name: 'Duet' }, pass: { name: 'Pass the phone' }, online: { hide: true } },
       daily: { title: 'Daily puzzle', onPlay: () => startDaily() },
       onChange: what => { if ((what === 'me' || what === 'import' || what === 'result') && S.tab === 'play' && !S.play) renderPlay(); },
     });
@@ -580,7 +580,8 @@ function stopGame() { gen++; clearTimeout(botTimer); botTimer = null; hint = nul
 // ------------------------------------------------------------------ Undo, results, replay (local games)
 const humansIn = P => (P && P.seats ? P.seats.filter(k => k === 'human').length : 0);
 // Undo only with one person at the phone (pass-the-phone would show the next player's view) and not after the end
-function canUndo() { const P = S.play; return !!(P && P.kind === 'local' && humansIn(P) === 1 && !game.isOver(P.state)); }
+// and never in the Daily puzzle (the computer's clues don't change, so Undo would let you retry until perfect)
+function canUndo() { const P = S.play; return !!(P && P.kind === 'local' && !P.daily && humansIn(P) === 1 && !game.isOver(P.state)); }
 function undoMove() {
   const P = S.play;
   if (!canUndo() || !P.undo || !P.undo.length) return;
@@ -608,15 +609,17 @@ function recordIfOver() {
   P.recorded = true; save();
   if (!PF) return;
   try {
-    PF.recordResult(KIT.result({ seats: P.seats, pub: game.publicView(P.state), myTeam: myTeamOf(P), style: P.state.style, helped: !!(P.helped || P.hints), daily: !!P.daily }));
+    PF.recordResult(KIT.result({ seats: P.seats, pub: game.publicView(P.state), myTeam: myTeamOf(P), style: P.state.style, helped: !!(P.helped || P.hints), daily: P.daily || null }));
   } catch (e) { /* stats are optional */ }
 }
 function startDaily() {
   if (!ASSOC) return toast('Word links still loading');
   const day = PF ? PF.daily.date() : new Date().toISOString().slice(0, 10);
   const rng = PF ? PF.daily.rng(day) : Math.random;
+  const again = !!(PF && PF.daily.played(day));
   if (PF) PF.closePanel();
   startLocal('coop', ['computer', 'human'], { rng, style: 'normal', daily: day });
+  if (again && S.play) { S.play.helped = true; save(); } // a second go at a known board is practice, not a result
   if (S.tab !== 'play') goTab('play');
 }
 async function shareDaily() {
@@ -662,7 +665,7 @@ setInterval(() => {
     const left = clock.play.end - now;
     p.querySelector('b').textContent = fmtClock(left);
     p.classList.toggle('low', left > 0 && left < 10500); p.classList.toggle('out', left <= 0);
-    if (left <= 0 && !clock.play.fired) { clock.play.fired = true; FX.play('alarm'); toast("Time's up"); }
+    if (left <= 0 && !clock.play.fired && S.tab === 'play') { clock.play.fired = true; FX.play('alarm'); toast("Time's up"); }
   }
   const c = clock.table;
   if (c.running) {
@@ -1392,6 +1395,8 @@ window.addEventListener('storage', e => {
   if (!n || typeof n !== 'object') return;
   if (S.play?.kind === 'online' || n.play?.kind === 'online') return; // online rooms sync themselves
   stopGame();
+  // a game the other tab just finished is recorded by that tab only (it saves once more with recorded: true)
+  if (n.play && n.play.state && game.isOver(n.play.state)) n.play.recorded = true;
   S = { ...S, play: n.play ?? null, table: { ...S.table, ...n.table }, settings: { ...S.settings, ...n.settings }, setup: { ...S.setup, ...n.setup } };
   $('#layer .cover')?.remove(); // renderPlay puts the pass-the-phone cover back if it's still needed
   renderAll(); scheduleBots();

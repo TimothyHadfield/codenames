@@ -55,8 +55,11 @@ export function result(g) {
     if (teams.size !== 1) return { mode: 'pass', won: null, extra };
     mode = 'computer'; level = g.style; w = pub.winner === [...teams][0];
   }
-  if (g.helped && mode === 'computer') { mode = 'help'; level = null; }
-  return { mode, level, won: w, score, daily: !!g.daily, extra };
+  // Hint or Undo (or a second go at today's Daily): counted, but not rated, not a Daily result, no skill badges
+  if (g.helped) return { mode: 'help', level: null, won: w, score, daily: false, extra: { variant: pub.variant, turns, reason: pub.reason } };
+  const out = { mode, level, won: w, score, daily: !!g.daily, extra };
+  if (g.daily && typeof g.daily === 'string') out.date = g.daily; // a Daily finished after midnight counts for its own day
+  return out;
 }
 
 // The Daily puzzle's result as a line to paste in a chat: one square per guess, by turn.

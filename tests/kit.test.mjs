@@ -77,6 +77,23 @@ test('My stats: Two teams vs the computer is rated at its level unless Hint/Undo
   assert.equal(both.won, null);
 });
 
+test('Hint or Undo makes any game unrated: not a Daily result, no skill badges; a Daily keeps its own date', () => {
+  const s = playOut('coop', 2, 'KITA1');
+  const pub = game.publicView(s);
+  const base = { seats: ['computer', 'human'], pub, myTeam: pub.start, style: 'normal' };
+  for (const seats of [['computer', 'human'], ['human', 'computer']]) {
+    const r = KIT.result({ ...base, seats, helped: true, daily: '2026-10-26' });
+    assert.equal(r.mode, 'help');
+    assert.equal(r.level, null);
+    assert.equal(r.daily, false);
+    assert.equal(r.extra.bestRun, undefined);
+  }
+  const d = KIT.result({ ...base, daily: '2026-10-26' });
+  assert.equal(d.daily, true);
+  assert.equal(d.date, '2026-10-26');
+  assert.equal(KIT.result(base).date, undefined);
+});
+
 test('Daily share line: a header and one square per guess, one row per turn', () => {
   const s = playOut('coop', 2, 'KITC3');
   const pub = game.publicView(s);
