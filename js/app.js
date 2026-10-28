@@ -6,7 +6,7 @@ import './fx.js';
 import { createSfx } from './sfx.js';
 import * as KIT from './kit.js?v=12';
 
-const BUILD = '2026-10-28.2';
+const BUILD = '2026-10-28.3';
 const LS = 'codenames:v1';
 const $ = (s, el = document) => el.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -158,7 +158,7 @@ function startTutorial() {
 function offerTutorial() {
   if (!tour || S.tab !== 'play' || S.play || tour.seen() || tour.saved() || COACH.offered(KIT.TUTORIAL.id)) return;
   if (PF && PF.stats().games > 0) return; // played here before: not new
-  COACH.offer({ id: KIT.TUTORIAL.id, title: 'New to Codenames?', text: 'Play one guided game: the computer gives the clues, you guess.', yes: 'Show me', no: 'No thanks', onYes: startTutorial });
+  COACH.offer({ id: KIT.TUTORIAL.id, title: 'New to Codenames?', text: 'Play one guided game: the computer gives the clues, you guess.', yes: 'Show me', no: 'No thanks', onYes: startTutorial, place: 'auto', avoid: ['[data-act="start"]'] });
 }
 
 let tapAt = 0; // when this phone last made a move (its own sounds play at full volume)

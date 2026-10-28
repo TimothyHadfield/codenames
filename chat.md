@@ -54,3 +54,5 @@
 - **Decided:** all-theme boards rejected after measuring (wins 86% → 24%); soft assassin / bonus card not built (no source).
 - **Verified:** `node --test` 48/48 (new packs test failed first on the old code); simulate per pack (progress.md table); base strength rerun matched shipped numbers; `layout-check` WebKit + Chrome, normal and BIG words, all pass; WebKit 393 + 1440 screenshots of Settings, pack sheet, Rules → Videos and a Food game.
 - **Open:** packs in a real two-browser online room; real iPhone.
+
+## 2026-10-28 — wave 3 kit sweep (builder A2): game-coach 1.2.0 + game-pwa 1.4.0 copied, offer `place:'auto'` avoiding Start, local link colour dropped; `node --test` 48/48 + quit browser test, pwa-check 18/18, offer/settings rect checks pass at 393/320/659×393.

@@ -459,5 +459,3 @@ html.big-words .card .w.l9 { font-size: clamp(10.5px, 17.5cqw, 33px); } /* 9+ le
 .choices.packs .choice { padding: 7px 12px; }
 .choices.packs .choice b { font-size: 15px; }
 .go-row .opts { flex-basis: 100%; }
-/* Rules sheet links (Videos): the site's dark-theme link colour is unreadable on the cream paper */
-.coach-rules-body a { color: #2a4f9e; }
