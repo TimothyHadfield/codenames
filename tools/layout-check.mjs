@@ -26,7 +26,7 @@ await new Promise(r => server.listen(0, '127.0.0.1', r));
 const base = `http://127.0.0.1:${server.address().port}/`;
 
 const LS = 'codenames:v1';
-const S = (tab, table) => JSON.stringify({ tab, settings: { style: 'normal', odds: true, heat: true, duetTimer: 9, name: '' },
+const S = (tab, table) => JSON.stringify({ tab, settings: { style: 'normal', odds: true, heat: true, duetTimer: 9, name: '', bigWords: !!process.env.BIG }, // BIG=1: Settings -> Bigger words
   table: { variant: 'classic', code: 'LFX', revealed: Array(25).fill(false), order: [], spy: false, team: null, side: 'A', marks: Array(25).fill(0), ...table }, play: null,
   setup: { pick: 'guess', seats: ['human', 'human', 'computer', 'computer'], duetPartner: 'computer', onlineVariant: 'classic', onlineSeats: 4 } });
 const all = Array(25).fill(true);

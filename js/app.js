@@ -1,12 +1,12 @@
 // Codenames site: Table (real-table companion), Play (computer / pass-the-phone / online),
 // Links (word connections explorer), Settings. Rules live in engine.js + game.js.
 import * as E from './engine.js';
-import { game, setAssoc, setBoardWords, role, seatName, stateFromViews } from './game.js?v=8'; // ?v: Pages caches modules 10 min; a stale game.js would miss new exports
+import { game, setAssoc, setBoardWords, setPacks, role, seatName, stateFromViews } from './game.js?v=9'; // ?v: Pages caches modules 10 min; a stale game.js would miss new exports
 import './fx.js';
 import { createSfx } from './sfx.js';
-import * as KIT from './kit.js?v=11';
+import * as KIT from './kit.js?v=12';
 
-const BUILD = '2026-10-27.3';
+const BUILD = '2026-10-28.1';
 const LS = 'codenames:v1';
 const $ = (s, el = document) => el.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -48,7 +48,7 @@ const coverArt = (c, word) => (c === 'A' ? ART.assassin : c === 'N' ? (word ? pi
 function defaults() {
   return {
     tab: 'play', // a first visit opens on Play (the Table companion is one tap away)
-    settings: { style: 'normal', odds: true, heat: true, duetTimer: 9, name: '', turnTimer: 0 },
+    settings: { style: 'normal', odds: true, heat: true, duetTimer: 9, name: '', turnTimer: 0, pack: 'base', unlimited: false, botSpeed: 'normal', bigWords: false },
     table: { variant: 'classic', code: '', revealed: Array(25).fill(false), order: [], spy: false, team: null, side: 'A', marks: Array(25).fill(0) },
     play: null,
     setup: { pick: 'guess', seats: ['human', 'human', 'computer', 'computer'], duetPartner: 'computer', onlineVariant: 'classic', onlineSeats: 4 },
@@ -63,7 +63,8 @@ function save() { try { localStorage.setItem(LS, JSON.stringify(S)); } catch (e)
 
 // drafts (not saved): clue being typed
 const draft = { table: { word: '', n: 1 }, play: { word: '', n: 1 } };
-let META = null, ASSOC = null, assocErr = null;
+let META = null, ASSOC = null, assocErr = null, PACKS = null;
+const packRows = new Map(); // pack id -> Promise (its rows are being / have been added to ASSOC)
 let gen = 0, botTimer = null, online = null, osnap = null, hint = null, actBusy = false, roomBusy = false;
 
 // ------------------------------------------------------------------ sound & effects (js/fx.js + js/sfx.js)
@@ -174,18 +175,41 @@ function fxCheck() {
 // ------------------------------------------------------------------ data loading
 async function loadData() {
   META = await fetch('data/words.json').then(r => { if (!r.ok) throw new Error('words ' + r.status); return r.json(); });
+  META.base = META.board.length; // base boards (Table tab, Daily, guided game) draw from these only
+  // word packs: the list is small; a pack's word links load when it is first played (ensurePack)
+  try {
+    PACKS = await fetch('data/packs.json').then(r => (r.ok ? r.json() : null));
+    if (PACKS && PACKS.base === META.base) { META.board = META.board.concat(PACKS.extra); setPacks(PACKS); } else PACKS = null;
+  } catch (e) { PACKS = null; }
+  if (!PACKS && S.settings.pack !== 'base') S.settings.pack = 'base';
   setBoardWords(META.board);
   if (!S.table.code) { S.table.code = E.randomCode(); save(); }
   fetch('data/strength.json').then(r => r.ok ? r.json() : null).then(j => { STRENGTH = j; if (S.tab === 'settings') renderSettings(); }).catch(() => {});
   renderAll();
   try {
     const buf = await fetch('data/assoc.bin').then(r => { if (!r.ok) throw new Error('table ' + r.status); return r.arrayBuffer(); });
-    ASSOC = new E.Assoc(new Int8Array(buf), META.board, META.clues, META.cpu);
+    ASSOC = new E.Assoc(new Int8Array(buf), META.board.slice(0, META.base), META.clues, META.cpu);
+    if (PACKS) ASSOC.addRows(META.board, [], new Int8Array(0)); // every pack word gets its index now, its row later
     setAssoc(ASSOC);
+    if (S.play && S.play.kind === 'local' && S.play.state.pack) await ensurePack(S.play.state.pack);
   } catch (e) { assocErr = e.message; }
   renderAll();
   scheduleBots();
 }
+// Adds one pack's word links to the table (once). Resolves true when its rows are in.
+function ensurePack(id) {
+  if (!id || id === 'base') return Promise.resolve(true);
+  const p = PACKS && PACKS.packs.find(x => x.id === id);
+  if (!p || !ASSOC) return Promise.resolve(false);
+  if (!packRows.has(id)) {
+    packRows.set(id, fetch(`data/packs/${id}.bin`).then(r => { if (!r.ok) throw new Error('pack ' + r.status); return r.arrayBuffer(); })
+      .then(buf => { ASSOC.addRows(META.board, p.rows, new Int8Array(buf)); setAssoc(ASSOC); return true; })
+      .catch(() => { packRows.delete(id); return false; }));
+  }
+  return packRows.get(id);
+}
+const packOf = id => (PACKS && PACKS.packs.find(x => x.id === id)) || null;
+const packName = id => (packOf(id) ? packOf(id).name : 'Base');
 
 // ------------------------------------------------------------------ helpers
 function wordsOf(idx) { return idx.map(i => META.board[i]); }
@@ -401,14 +425,16 @@ const HELP = {
   links: ['Word links', 'Lines join pairs of board words that the word data puts close together. Thick lines are the strongest links: a good clue usually sits between words that are linked.'],
   heat: ['Board heat', 'While you type a clue, a gold bar under each word shows how close it is to your clue.'],
   sand: ['Turn timer', 'A sand timer for the person whose turn it is, in games on this phone. It only counts down and chimes when time is up; nothing happens to the turn. The Table tab has its own timer to start by hand.'],
+  unlimited: ['Unlimited guesses', 'A house rule, not in the rulebook: guessers may keep going while they keep finding their own agents, instead of stopping at the number plus one. Many groups play this way. The computer still stops at its clue number.'],
+  pack: ['Word packs', 'Our own themed word lists. Each board mixes about a third pack words with base words (an all-theme board is too tight to clue well). The computer knows every pack word. The Table tab, Daily puzzle and guided game always use the base words.'],
   coop: ['Two-player rules', 'From the rulebook: your team plays a pretend opponent. After each of your turns, your spymaster covers one of their agents. Win before all 8 are covered; your score is how many of theirs are left.'],
 };
 
 // ------------------------------------------------------------------ TABLE tab
 function tableBoard() {
   const t = S.table;
-  if (t.variant === 'duet') { const d = E.genDuet(t.code, META.board.length); return { words: d.words, key: t.side === 'A' ? d.keyA : d.keyB, d }; }
-  return E.genClassic(t.code, META.board.length);
+  if (t.variant === 'duet') { const d = E.genDuet(t.code, META.base); return { words: d.words, key: t.side === 'A' ? d.keyA : d.keyB, d }; }
+  return E.genClassic(t.code, META.base);
 }
 
 function renderTable() {
@@ -561,7 +587,7 @@ function scheduleBots() {
   const bots = game.toAct(st).filter(i => P.seats[i] === 'computer');
   if (!bots.length) return;
   const myGen = gen;
-  const delay = st.phase === 'clue' ? 1100 : 800;
+  const delay = (st.phase === 'clue' ? 1100 : 800) * (BOT_SPEED[S.settings.botSpeed] || 1);
   botTimer = setTimeout(() => {
     botTimer = null;
     if (myGen !== gen || !S.play) return;
@@ -575,6 +601,7 @@ function scheduleBots() {
     save(); renderAll(); scheduleBots();
   }, delay);
 }
+const BOT_SPEED = { slow: 1.8, normal: 1, fast: 0.35 }; // Settings -> Computer speed
 function stopGame() { gen++; clearTimeout(botTimer); botTimer = null; hint = null; }
 
 // ------------------------------------------------------------------ Undo, results, replay (local games)
@@ -697,7 +724,9 @@ function startLocal(variant, seats, extra = {}) {
   abandonGame();
   stopGame();
   const { code, style, rng, ...keep } = extra;
-  const options = { variant, style: style || S.settings.style, timer: S.settings.duetTimer, code };
+  const plain = keep.daily || keep.tutorial; // Daily puzzle and guided game: base words, rulebook rules
+  const options = { variant, style: style || S.settings.style, timer: S.settings.duetTimer, code,
+    pack: plain ? null : S.settings.pack, rules: plain ? {} : { unlimited: !!S.settings.unlimited } };
   const st = game.setup(seats.length, options, rng || Math.random, seats.map(k => ({ kind: k })));
   S.play = { kind: 'local', variant, seats, state: st, lastSeat: null, shown: null, ratings: {}, hints: 0, undo: [], id: Date.now().toString(36), ...keep };
   if (COACH) COACH.closeOffer();
@@ -1003,8 +1032,15 @@ function renderSetup(el) {
     </div>
     ${extra}
     ${su.pick !== 'online' ? `<div class="row go-row"><button class="btn main" data-act="start" ${ASSOC ? '' : 'disabled'}>${ASSOC ? 'Start' : 'Loading word links…'}</button>
-      ${su.pick === 'guess' || su.pick === 'give' ? '<span class="small muted">Two-player rules <button class="q" data-help="coop">?</button></span>' : ''}</div>` : ''}
+      ${su.pick === 'guess' || su.pick === 'give' ? '<span class="small muted">Two-player rules <button class="q" data-help="coop">?</button></span>' : ''}${setupOpts(su.pick)}</div>` : setupOpts('online', true)}
   </div></div>`;
+}
+
+// which word pack / house rule a new game will use (set in Settings); nothing shows for the base game
+function setupOpts(pick, block) {
+  const line = optsLine({ pack: S.settings.pack, rules: { unlimited: S.settings.unlimited }, variant: pick === 'duet' ? 'duet' : (pick === 'online' && S.setup.onlineVariant === 'duet') ? 'duet' : 'classic' }).replace(/^ · /, '');
+  if (!line) return '';
+  return block ? `<p class="small muted" style="margin-top:8px">${line}</p>` : `<span class="small muted opts">${line}</span>`;
 }
 
 // Daily puzzle: today's board and the same computer spymaster for everyone (shared _profile kit's daily seed)
@@ -1015,8 +1051,9 @@ function dailyChoice() {
   return `<button class="choice" data-act="daily">${ART.daily}<div><b>Daily puzzle</b><span>${sub}</span></div></button>`;
 }
 
-function startPicked() {
+async function startPicked() {
   const su = S.setup;
+  if (S.settings.pack !== 'base' && !(await ensurePack(S.settings.pack))) return toast('Word pack failed to load. Try again.');
   if (su.pick === 'guess') startLocal('coop', ['computer', 'human']);
   else if (su.pick === 'give') startLocal('coop', ['human', 'computer']);
   else if (su.pick === 'teams') {
@@ -1040,9 +1077,12 @@ function onlineSetupHTML() {
 async function ensureOnline() {
   if (online) return online;
   const mod = await import('./online.js?v=a3d0418b');
-  online = mod.createOnline({ game, gameId: 'codenames', botDelayMs: 900 });
+  online = mod.createOnline({ game, gameId: 'codenames', botDelayMs: Math.round(900 * (BOT_SPEED[S.settings.botSpeed] || 1)) });
   online.on('change', snap => {
     osnap = snap;
+    // a pack room: this phone needs the pack's word links for odds, Idea and Pick for me
+    const pk = snap.pub?.pack || snap.options?.pack;
+    if (pk && pk !== 'base' && !packRows.has(pk)) ensurePack(pk).then(ok => { if (ok) renderAll(); });
     if (snap.status === 'closed' || snap.status === 'left') { if (S.play?.kind === 'online') { S.play = null; save(); toast(snap.status === 'closed' ? 'Room closed' : 'You left the room'); } }
     renderAll();
   });
@@ -1062,7 +1102,8 @@ async function onlineCreate() {
   try {
     const o = await ensureOnline();
     toast('Making a room…');
-    r = await o.createRoom({ name, seats, options: { variant: su.onlineVariant, style: S.settings.style, timer: S.settings.duetTimer } });
+    if (!(await ensurePack(S.settings.pack))) throw new Error('pack');
+    r = await o.createRoom({ name, seats, options: { variant: su.onlineVariant, style: S.settings.style, timer: S.settings.duetTimer, pack: S.settings.pack, rules: { unlimited: !!S.settings.unlimited } } });
   } catch (e) { r = { ok: false, message: 'No connection. Try again.' }; } finally { roomBusy = false; }
   if (!r.ok) return toast(r.message);
   stopGame();
@@ -1094,7 +1135,7 @@ function renderOnlineLobby(el, snap) {
   const st = { variant: v, start: 'R' };
   const seats = snap.seats.map((s, i) => `<div class="seatbtn"><span>${esc(seatName(st, i))}</span><em>${s.kind === 'human' ? esc(s.name) + (s.online ? '' : ' (away)') : s.kind === 'computer' ? 'Computer' : '<span class="muted">open</span>'}</em>${snap.isHost && i !== snap.mySeat && s.kind !== 'human' ? `<button class="btn small" data-act="oseat" data-v="${i}" data-k="${s.kind === 'empty' ? 'computer' : 'empty'}">${s.kind === 'empty' ? 'Computer' : 'Open'}</button>` : ''}</div>`).join('');
   el.innerHTML = `<div class="stage"><div class="panel" style="flex:1;max-width:560px;margin:0 auto;width:100%">
-    <div class="result"><span class="small muted">Room code</span><div class="big-code">${esc(snap.code)}</div><span class="small muted">${v === 'classic' ? 'Two teams' : v === 'coop' ? 'Two-player' : 'Duet'} · friends open this site, Play → Online room → Join</span></div>
+    <div class="result"><span class="small muted">Room code</span><div class="big-code">${esc(snap.code)}</div><span class="small muted">${v === 'classic' ? 'Two teams' : v === 'coop' ? 'Two-player' : 'Duet'}${optsLine(snap.options)} · friends open this site, Play → Online room → Join</span></div>
     <h3>Seats</h3><div class="seats" style="grid-template-columns:1fr">${seats}</div>
     <div class="row" style="margin-top:12px">${snap.isHost ? '<button class="btn main" data-act="ostart">Start game</button>' : '<span class="muted">Waiting for the host to start…</span>'}<button class="btn small" data-act="quit">Leave</button></div>
   </div></div>`;
@@ -1151,9 +1192,10 @@ function renderLinks() {
       if (c < 0) side += `<p class="msg">"${esc(links.word)}" isn't in the ${ASSOC.nC.toLocaleString()} known words.</p>`;
       else {
         const onBoard = b.idx.map((w, i) => [i, ASSOC.sim(w, c)]).sort((x, y) => y[1] - x[1]).slice(0, 6);
-        const all = META.board.map((w, i) => [w, ASSOC.sim(i, c)]).filter(x => x[0] !== links.word).sort((x, y) => y[1] - x[1]).slice(0, 12);
+        const nAll = knownBoard().length;
+        const all = knownBoard().map(i => [META.board[i], ASSOC.sim(i, c)]).filter(x => x[0] !== links.word).sort((x, y) => y[1] - x[1]).slice(0, 12);
         side += `<h3>${esc(links.word)} → this board</h3><div class="near">${onBoard.map(([i, s]) => `<div class="near-row"><span></span><span class="nm">${esc(META.board[b.idx[i]])}</span><span class="track"><i style="width:${Math.max(3, Math.min(100, s / 0.7 * 100)).toFixed(0)}%"></i></span><span class="pc">${Math.round(s * 100)}</span></div>`).join('')}</div>
-          <h3>${esc(links.word)} → all ${META.board.length} board words</h3><div class="wordlist">${all.map(([w, s]) => `<span class="tag">${esc(w)} ${Math.round(s * 100)}</span>`).join('')}</div>`;
+          <h3>${esc(links.word)} → all ${nAll} board words</h3><div class="wordlist">${all.map(([w, s]) => `<span class="tag">${esc(w)} ${Math.round(s * 100)}</span>`).join('')}</div>`;
       }
     }
   }
@@ -1162,6 +1204,33 @@ function renderLinks() {
   });
   fitText(el);
 }
+
+// board words whose links are loaded: the base list plus any pack played on this visit
+function knownBoard() {
+  const out = [...Array(META.base).keys()];
+  if (PACKS) for (const [id, pr] of packRows) { const p = packOf(id); if (p && pr) p.words.forEach(w => { const i = META.board.indexOf(w); if (i >= META.base && !out.includes(i)) out.push(i); }); }
+  return out;
+}
+// the word pack sheet (Settings -> Word pack)
+function packSheet() {
+  const cur = S.settings.pack || 'base';
+  const row = (id, name, desc, n) => `<button class="choice ${cur === id ? 'on' : ''}" data-pack="${id}"><div><b>${esc(name)}</b><span>${esc(desc)} · ${n} words</span></div></button>`;
+  sheet(`<h2>Word pack</h2><div class="choices packs">${row('base', 'Base', 'The everyday mix', META.base)}${PACKS.packs.map(p => row(p.id, p.name, p.desc, p.words.length)).join('')}</div>
+<div class="btns"><span></span><button class="btn" id="ok">Close</button></div>`, sh => {
+    $('#ok', sh).onclick = closeSheet;
+    sh.querySelectorAll('[data-pack]').forEach(b => { b.onclick = () => { S.settings.pack = b.dataset.pack; save(); ensurePack(S.settings.pack); closeSheet(); renderAll(); }; });
+  });
+}
+// " · Food words · Unlimited guesses" for a game's or room's options
+function optsLine(o) {
+  if (!o) return '';
+  const bits = [];
+  if (o.pack && o.pack !== 'base') bits.push(packName(o.pack) + ' words');
+  if (o.rules && o.rules.unlimited && o.variant !== 'duet') bits.push('Unlimited guesses');
+  return bits.map(b => ' · ' + esc(b)).join('');
+}
+const applyLook = () => document.documentElement.classList.toggle('big-words', !!S.settings.bigWords);
+applyLook();
 
 // ------------------------------------------------------------------ SETTINGS tab
 let STRENGTH = null; // data/strength.json, written by tools/simulate.mjs
@@ -1174,12 +1243,18 @@ function renderSettings() {
     ${sw('odds', 'Show odds')}
     ${sw('heat', 'Board heat', 'heat')}
     <div class="set-row"><span class="lab">Duet turns</span><div class="seg">${[9, 10, 11].map(n => `<button data-act="timer" data-v="${n}" class="${st.duetTimer === n ? 'on' : ''}">${n}</button>`).join('')}</div></div>
+    <div class="set-row"><span class="lab">Word pack <button class="q" data-help="pack">?</button></span><button class="btn small" data-act="packs" ${PACKS ? '' : 'disabled'}>${esc(packName(st.pack))} ▸</button></div>
+    <div class="set-row"><span class="lab">Computer speed</span><div class="seg">${[['slow', 'Slow'], ['normal', 'Normal'], ['fast', 'Fast']].map(([v, l]) => `<button data-act="botspeed" data-v="${v}" class="${(st.botSpeed || 'normal') === v ? 'on' : ''}">${l}</button>`).join('')}</div></div>
+    ${sw('bigWords', 'Bigger words')}
     <div class="set-row"><span class="lab">Turn timer <button class="q" data-help="sand">?</button></span><div class="seg">${[[0, 'Off'], [60, '1 min'], [120, '2 min'], [180, '3 min']].map(([n, l]) => `<button data-act="turntimer" data-v="${n}" class="${(st.turnTimer || 0) === n ? 'on' : ''}">${l}</button>`).join('')}</div></div>
+    <h3 style="margin-top:14px">House rules</h3>
+    ${sw('unlimited', 'Unlimited guesses', 'unlimited')}
+    <p class="small muted set-note">Keep guessing past the number + 1. Off = the rulebook.</p>
     <div class="row" style="margin:12px 0 4px">${COACH ? '<button class="btn small" data-act="rules">Rules</button><button class="btn small" data-act="tutorial">Replay tutorial</button>' : ''}${PF ? `<button class="btn small pf-open" data-act="mystats">${PF.avatarSVG(PF.avatar, 20)}My stats</button>` : ''}</div>
     <div class="set-row"><span class="lab">How strong? <button class="q" data-help="strength">?</button></span><span class="small muted">measured</span></div>
     ${strengthTable()}
     <h3 style="margin-top:16px">Sound &amp; effects</h3><div id="fxSet"></div>
-    <p class="small muted" style="margin-top:14px">Word links: GloVe 6B (Stanford NLP, public domain), cut to ${META ? META.board.length : '…'} board words × ${META ? META.clues.length.toLocaleString() : '…'} clue words. Board list is this site's own. Build ${BUILD}.</p>
+    <p class="small muted" style="margin-top:14px">Word links: GloVe 6B (Stanford NLP, public domain), cut to ${META ? META.base : '…'} board words${PACKS ? ` + ${PACKS.extra.length} pack words` : ''} × ${META ? META.clues.length.toLocaleString() : '…'} clue words. Board list is this site's own. Build ${BUILD}.</p>
   </div></div>`;
   FX.renderSettings($('#fxSet', el));
 }
@@ -1295,7 +1370,9 @@ document.addEventListener('click', e => {
     case 'oseat': online.setSeat(+v, b.dataset.k).then(r => { if (!r.ok) toast(r.message); }); break;
     case 'ostart': online.start().then(r => { if (!r.ok) toast(r.message); }); break;
     case 'style': S.settings.style = v; save(); renderSettings(); break;
-    case 'toggle': S.settings[v] = !S.settings[v]; save(); renderSettings(); break;
+    case 'toggle': S.settings[v] = !S.settings[v]; save(); applyLook(); renderSettings(); break;
+    case 'packs': if (PACKS) packSheet(); break;
+    case 'botspeed': S.settings.botSpeed = v; save(); renderSettings(); break;
     case 'timer': S.settings.duetTimer = +v; save(); renderSettings(); break;
     case 'lookup': links.word = v; renderLinks(); break;
     case 'undo': undoMove(); break;

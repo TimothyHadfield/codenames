@@ -76,6 +76,14 @@ export function shareLine(day, pub) {
 }
 
 // ---------------------------------------------------------------- rules sheet (own words)
+// Videos checked 2026-10-28: YouTube oEmbed answered 200 with these titles and channels.
+export const VIDEOS = [
+  { id: '9BSi6Gi3Bzo', title: 'Official how to play', by: 'Czech Games Edition' },
+  { id: 'J8RWBooJivg', title: 'Codenames: how to play', by: 'Watch It Played' },
+  { id: 'BCf_APiCr-Q', title: 'Codenames Duet: how to play', by: 'Top TableTop' },
+  { id: '3-jmnTW9O0E', title: 'Mastering spymaster clues', by: 'Rapid Rules' },
+  { id: '5yZqoSOpb1s', title: 'Strategy guide', by: 'Legendary Tactics' },
+];
 export function rules() {
   return {
     title: 'How to play Codenames',
@@ -98,6 +106,12 @@ export function rules() {
       { id: 'duet', short: 'Duet', title: 'Duet (co-op for two)', html: `<p>Both players are spymasters and guessers. Each sees a different side of the key; there are 15 agents to find between you, in 9 turns.</p>
         <ul><li>Clues come from either side, taking turns. A guess is checked against the <b>clue giver's</b> side.</li><li>A bystander ends the turn and uses up a turn token.</li>
         <li>When the tokens run out: <b>sudden death</b>. No more clues; point at words, and any miss loses.</li></ul>` },
+      { id: 'house', short: 'House rules', title: 'House rules and word packs', html: `<p>Off unless you turn them on in <b>Settings</b>:</p>
+        <ul><li><b>Unlimited guesses</b>: keep guessing while you keep finding your own agents, instead of stopping at the number plus one. A common house rule, not in the rulebook.</li>
+        <li><b>Word pack</b>: mix a themed list (Food, Animals, Places, Science, Sports, Pop &amp; fun) into the board, about a third of the words. Our own lists; the computer knows every word.</li></ul>
+        <p class="tip">Daily puzzle, the guided game and the Table tab always use the base words and the rulebook.</p>` },
+      { id: 'videos', short: 'Videos', title: 'Videos', html: `<p>Learn by watching (opens YouTube):</p>
+        <ul>${VIDEOS.map(v => `<li><a href="https://www.youtube.com/watch?v=${v.id}" target="_blank" rel="noopener">${v.title}</a> <span class="muted">(${v.by})</span></li>`).join('')}</ul>` },
     ],
   };
 }

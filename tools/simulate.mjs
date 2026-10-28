@@ -7,18 +7,30 @@
 // "Other mind": the other side uses the 50-d GloVe table, a stand-in for a human who
 // links words differently. Needs the eval table from build_assoc.py --eval-out.
 //
-// usage: node tools/simulate.mjs <assoc50.bin> [games=300]
-import { loadAssoc } from './load-node.mjs';
+// usage: node tools/simulate.mjs <assoc50.bin> [games=300] [--pack <id>]
+//   --pack: boards from that word pack (needs packs50.bin from build_packs.py --eval-out beside
+//   assoc50.bin); prints only, data/strength.json stays the base list's numbers.
+import { loadAssoc, loadPacks } from './load-node.mjs';
+import { dirname, join } from 'node:path';
 import * as E from '../js/engine.js';
 
-const evalBin = process.argv[2];
-const GAMES = +(process.argv[3] || 300);
+const args = process.argv.slice(2);
+const PACK_ID = args.includes('--pack') ? args.splice(args.indexOf('--pack'), 2)[1] : null;
+const evalBin = args[0];
+const GAMES = +(args[1] || 300);
 const A300 = loadAssoc();
 const A50 = evalBin ? loadAssoc(evalBin) : null;
+let PACK = null;
+if (PACK_ID) {
+  const P = loadPacks(A300, [PACK_ID]);
+  if (A50) loadPacks(A50, null, join(dirname(evalBin), 'packs50.bin'));
+  const all = A300.board;
+  PACK = { id: PACK_ID, version: P.version, k: process.env.PACK_K ? +process.env.PACK_K : P.packs.find(p => p.id === PACK_ID).mix, idx: P.packs.find(p => p.id === PACK_ID).words.map(w => all.indexOf(w)) };
+}
 
 // spymaster mind S gives clues, guesser mind G guesses; returns game stats
 export function playCoop(code, S, G, style) {
-  let s = E.newClassic(code, S.nB, { mode: 'coop' });
+  let s = E.newClassic(code, S.nBase ?? S.nB, { mode: 'coop', pack: PACK });
   const used = new Set();
   const st = { clues: 0, words: 0, guesses: 0, right: 0, wrong: 0 };
   while (s.phase !== 'over') {
@@ -65,14 +77,14 @@ const row = (who, style, a) => ({
 });
 
 if (import.meta.url.endsWith(process.argv[1].replace(/\\/g, '/').split('/').pop())) {
-  console.log(`${GAMES} games each, official two-player rules`);
+  console.log(`${GAMES} games each, official two-player rules${PACK ? ', pack ' + PACK.id : ''}`);
   const rows = [];
   for (const style of ['safe', 'normal', 'bold']) {
     rows.push(row('same-mind', style, run('same mind (300d/300d)', A300, A300, style)));
     if (A50) rows.push(row('cpu-clues', style, run('computer clues, other guesses', A300, A50, style)));
     if (A50) rows.push(row('cpu-guesses', style, run('other clues, computer guesses', A50, A300, style)));
   }
-  if (A50) {
+  if (A50 && !PACK) {
     const { writeFileSync } = await import('node:fs');
     const out = new URL('../data/strength.json', import.meta.url);
     writeFileSync(out, JSON.stringify({ measured: new Date().toISOString().slice(0, 10), games: GAMES, rows }, null, 1));

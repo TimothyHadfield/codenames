@@ -447,3 +447,15 @@ table.strength th { color: var(--muted); font-weight: 600; }
 .mo-veil { position: fixed; inset: 0; z-index: 2147483000; pointer-events: none; background: radial-gradient(circle at 50% 50%, rgba(140, 16, 12, .38), rgba(0, 0, 0, .78)); }
 .mo-ass { position: fixed; z-index: 2147483001; pointer-events: none; filter: drop-shadow(0 12px 32px rgba(255, 70, 60, .5)); }
 .mo-ass svg { display: block; width: 100%; height: 100%; }
+
+/* ---------- Settings -> Bigger words (2026-10-28): the white strip takes more of the card, words grow ~25%;
+   the upside-down word on top stays (it's how the real card looks), just smaller ---------- */
+html.big-words .card .wtop { flex-basis: 30%; }
+html.big-words .card .strip { flex-basis: 70%; }
+html.big-words .card .w { font-size: clamp(12px, 21.5cqw, 38px); }
+html.big-words .card .w.l9 { font-size: clamp(10.5px, 17.5cqw, 33px); } /* 9+ letters: squeezed no thinner than 70% */
+@media (min-width: 900px) { html.big-words .card .w { font-size: clamp(16px, 19cqw, 36px); } html.big-words .card .w.l9 { font-size: clamp(14px, 16.5cqw, 31px); } }
+.set-note { margin: 2px 0 0; }
+.choices.packs .choice { padding: 7px 12px; }
+.choices.packs .choice b { font-size: 15px; }
+.go-row .opts { flex-basis: 100%; }

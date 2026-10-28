@@ -12,6 +12,16 @@ let ASSOC = null;           // the word table (loaded by the page, or by tests i
 let BOARD_WORDS = null;     // board word strings, needed by setup before the table loads
 export function setAssoc(a) { ASSOC = a; if (a) BOARD_WORDS = a.board; }
 export function setBoardWords(list) { BOARD_WORDS = list; }
+// Word packs (data/packs.json): base boards draw from the first `base` words; a pack draws only from its own.
+let PACKS = null;
+export function setPacks(p) { PACKS = p; }
+export const getPacks = () => PACKS;
+export function packIdx(id) {
+  const p = PACKS && PACKS.packs.find(x => x.id === id);
+  if (!p) return null;
+  const all = PACKS.full || (PACKS.full = (BOARD_WORDS || []).slice(0, PACKS.base).concat(PACKS.extra));
+  return { id: p.id, version: PACKS.version, k: p.mix, idx: p.words.map(w => all.indexOf(w)) };
+}
 export const getAssoc = () => ASSOC;
 
 export function role(s, seat) {
@@ -34,7 +44,8 @@ export function visibleWords(s) {
 }
 // A state the computer can choose from, built from what this seat sees (online "Pick for me").
 export function stateFromViews(pub, mine = {}) {
-  return { ...pub, key: mine.key || pub.key, words: pub.w.map(w => BOARD_WORDS.indexOf(w)), used: [] };
+  const list = ASSOC ? ASSOC.board : BOARD_WORDS;
+  return { ...pub, key: mine.key || pub.key, words: pub.w.map(w => list.indexOf(w)), used: [] };
 }
 const spySeat = (s, team) => (s.variant === 'coop' ? 0 : team === 'R' ? 0 : 1);
 const opSeats = (s, team) => {
@@ -55,17 +66,21 @@ export const game = {
     // rebuild the key with genClassic/genDuet (QA 2026-10-19). 8 of A-Z0-9 covers the 32-bit seed space.
     let code = E.normCode(options.code);
     if (!code) { code = ''; for (let i = 0; i < 8; i++) code += 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'[Math.floor(rng() * 36)]; }
-    const nW = BOARD_WORDS.length;
+    const nW = PACKS ? PACKS.base : BOARD_WORDS.length; // base boards: the base list only, packs or not
+    const packId = options.pack && options.pack !== 'base' ? options.pack : null;
+    const pack = packId ? packIdx(packId) : null;
+    if (packId && !pack) throw new Error('Word pack not loaded');
     let s;
     if (variant === 'duet') {
       if (n !== 2) throw new Error('Duet is for 2 seats');
-      s = E.newDuet(code, nW, { timer: options.timer || 9 });
+      s = E.newDuet(code, nW, { timer: options.timer || 9, pack });
     } else {
       if (variant === 'classic' && n < 4) throw new Error('Two teams need 4 seats');
-      s = E.newClassic(code, nW, { mode: variant === 'coop' ? 'coop' : 'teams' });
+      s = E.newClassic(code, nW, { mode: variant === 'coop' ? 'coop' : 'teams', pack, rules: options.rules });
     }
     s.variant = variant; s.n = n;
-    s.w = s.words.map(i => BOARD_WORDS[i]);
+    if (pack) s.pack = pack.id;
+    s.w = s.words.map(i => (PACKS && PACKS.full ? PACKS.full[i] : BOARD_WORDS[i]));
     s.kinds = seats.map(x => x.kind || 'human');
     s.style = options.style || 'normal';
     s.used = [];
@@ -123,7 +138,7 @@ export const game = {
     const over = s.phase === 'over';
     const v = {
       variant: s.variant, n: s.n, w: s.w, phase: s.phase, turn: s.turn, clue: s.clue,
-      winner: s.winner, reason: s.reason, style: s.style, kinds: s.kinds,
+      winner: s.winner, reason: s.reason, style: s.style, kinds: s.kinds, pack: s.pack || null, rules: s.rules || {},
       history: s.history.map(h => ({ ...h, targets: over ? h.targets : null })),
     };
     if (s.variant === 'duet') {

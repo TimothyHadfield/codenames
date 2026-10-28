@@ -1,7 +1,7 @@
 # Codenames — progress
 
 ## START HERE
-Read this file, then `CLAUDE.md`, then the last entry of `chat.md`. Last updated: 2026-10-27 (improvement pass, live at d7385ed).
+Read this file, then `CLAUDE.md`, then the last entry of `chat.md`. Last updated: 2026-10-28 (wave 3: word packs, house rule, speed, bigger words, videos; build 2026-10-28.1).
 
 Live: https://timothyhadfield.github.io/codenames/ · Repo: https://github.com/TimothyHadfield/codenames
 
@@ -26,6 +26,7 @@ Phase 2 of the board-game wave is built: exact-rules play (classic, two-player, 
 | Visibility pass (2026-10-21) | Done: words one letter height (long ones squeezed, not shrunk), covered words readable, laptop + phone-on-its-side boards fill their free space, Links map fills too. Before → after: 9-letter words 9 → 12px at 393; landscape board 24% → 41% of screen; laptop empty band 88-180 → 18px. Check: `node tools/layout-check.mjs [webkit|chrome]` |
 | Improvement pass (2026-10-27) | Done, live d7385ed: guided first game (board TUT7, clue INSTRUMENT 2) + Rules sheet (`_coach`), My stats + 11 achievements + Daily puzzle with share line (`_profile`; Hint/Undo/second Daily go = unrated "With Hint or Undo"), home-screen install + offline (`_pwa`, `tests/pwa-check.json` 18/18), Undo vs computer (not in Daily), end-of-game replay, sand timers (Settings → Turn timer while you're to act; Table tab Start/Stop), opens on Play, laptop cards start under the bar, phone Table bottom filled by the timer, 4 agent + 2 bystander cover figures, assassin scene + win wave (off with Animations off / Reduce Motion). Codenames' kit glue is `js/kit.js` |
 | Table look (2026-10-20) | Done: dark-wood table (shared `_table` copied unchanged into `css/table.css` + `js/table.js`), 5×5 beige codename cards at the real ratio (68:44) with the upside-down word on top and the white word strip, agent cover cards dropped with slight jitter, red/blue (Duet: green) agent stacks with counts, the clue on a notepad slip, seat plates for others across the board, your plate + key card in a stand at your edge, a 7° board tilt, a deal-in on start, and the cover card flying from its stack. `fx.js` re-copied as 1.0.3 |
+| Wave 3 (2026-10-28, build 2026-10-28.1) | Done: **6 word packs** (Food, Animals, Places, Science, Sports, Pop & fun; 70–75 words each, our own lists in `tools/packs.txt`, built by `tools/build_packs.py` from GloVe 6B into `data/packs.json` + `data/packs/<id>.bin`, loaded only when used; work online; Table tab, Daily and guided game stay base). **House rule** "Unlimited guesses" (off by default). **Computer speed** Slow/Normal/Fast. **Bigger words** switch. **Rules → Videos** tab (5 YouTube links, ids checked by oEmbed 10-28: 9BSi6Gi3Bzo CGE, J8RWBooJivg Watch It Played, BCf_APiCr-Q Top TableTop Duet, 3-jmnTW9O0E Rapid Rules clues, 5yZqoSOpb1s Legendary Tactics). Test: `tests/packs.test.mjs` |
 | Quit = loss (2026-10-27, build 14) | Done: quitting a game vs the computer after your first move (a Daily puzzle from the start) records a loss in My stats (`extra.quit`, toast "Game left: counted as a loss"; the Quit sheet says "It counts as a loss in My stats."). Guided game, pass-the-phone two-team games and a quit before moving never count. Starting another game over an unfinished one counts the same. Test: `node tests/quit.browser.mjs` (WebKit; failed 3/7 on the old code) |
 
 ## Authorized next steps
@@ -87,6 +88,7 @@ Others' and computer moves play at 0.85 volume. Card taps don't make the button 
 | Normal | 96→95% / 1.36→1.37 / 86→86% / **2→0%** | 85% / 4% |
 | Bold | 91→90% / 1.72→1.67 / 87→89% / **5→1%** | 81% / 4% |
 Change 10-27: Normal/Bold keep a wider berth round the assassin (`assPad`) and count bystanders a bit less (`neuCut`). Tried and dropped (no better or worse): an expected-value clue picker, a z-score picker, guessers that stop early / discount words close to everything / take the bonus guess; the wider berth on Safe (wins 79→75%).
+**Word packs (10-28, Normal, 150 games per pack, `node tools/simulate.mjs <assoc50.bin> 150 --pack <id>`):** an all-pack board collapsed (food: computer-clue wins 86% → 24%, guesser assassin 4% → 11%), because themed words are all close to each other. So a pack board mixes `PACK_MIX` = 8 pack words with 17 base words (animals: `mix=5`, the tightest pack). Food 13 → 63%, 8 → 77%, 5 → 87%. Shipped: computer clues → other guesser win / assassin, then other's clues → computer guesser win / assassin: food 77/1, 82/8 · science 82/1, 91/5 · animals (mix 5) 77/3, 85/5 · places 85/1, 91/5 · sports 83/1, 86/8 · pop 90/1, 93/3 (base 86/0, 91/4). The Settings "How strong?" table is base words only.
 Computer team vs computer team (`tools/head2head.mjs`, 400 games per pair, colours swapped): Normal beats Safe 68.3% (+133 Elo), Bold beats Normal 80.3% (+244). My stats levels: Safe 1200, Normal 1333, Bold 1577.
 
 ## Traps
@@ -110,6 +112,7 @@ Computer team vs computer team (`tools/head2head.mjs`, 400 games per pair, colou
 - Kit copies (don't edit, re-copy from the kit folder): `js/coach.js`, `css/coach.css`, `js/profile.js`, `css/profile.css`, `js/pwa.js`, `sw.js`, `tools/pwa-check.mjs`, `tools/make-icons.mjs`. Bump `data-version` on the pwa.js tag every deploy (it names the offline cache), plus `BUILD` in app.js and the changed files' `?v=`. `kit.js` is imported as `./kit.js?v=N`: bump it with kit.js.
 - `tests/kit.test.mjs` pins the tutorial board: if clue settings change and TUT7 stops opening with INSTRUMENT 2, pick a new board (scratchpad `findtut.mjs` idea: both word models must put the targets first) and update `KIT.TUTORIAL` + the tour text.
 - Laptop `.boardbox` must stay `flex: 1` (cards at the top, spare wood at your edge). Making the wood hug the board was tried 10-27: it fails layout-check's "table fills the column" and collapses the Links map.
+- **Word packs:** changing a pack's words or order in `tools/packs.txt` changes that pack's seeded boards: bump `VERSION` in `tools/build_packs.py` and rerun it (needs `glove.6B.zip`, free from huggingface stanfordnlp/glove; it also checks the zip rebuilds `assoc.bin` exactly). Board indexes = base words then `packs.json` "extra", never depending on which packs are loaded; `clueMean` stays base-only. A new pack word must not clash with another in the same pack under the clue rule (test checks). Simulating a pack needs `packs50.bin` next to the 50d table (`--eval-out`).
 - `PWA.safeToReload` is false mid-game on the Play tab (pwa-check requires it); the "New version" pill shows instead.
 
 ## Decisions
@@ -120,6 +123,7 @@ Computer team vs computer team (`tools/head2head.mjs`, 400 games per pair, colou
 - Safe style loosened 2026-10-19 (was 45% wins, now 79%).
 - Duet sudden death: a player may point only while the partner's side has agents; alternate when both can (2026-10-20, after QA found an unwinnable case).
 - 10-27 (Tim's calls, plainest version built): sand timers are advisory (nothing happens at 0:00); Daily = "You guess" at Normal; app opens on Play; level names Safe/Normal/Bold; achievement names; no per-friend record; word themes/languages not built.
+- 10-28 (plainest version, Tim may change): pack names/lists are ours; a pack board is about a third pack words (measured, above); "Unlimited guesses" is the only house rule (sourced as a common table rule; the computer still stops at its number). Not built: "soft assassin" and "bonus 9th card" (no source found), packs on the Table tab (phones sharing a code could mismatch).
 - Clue "same stem" rule = shared start of 3+ letters and both endings are plain word endings (s, ed, ing, y/ies...), so stay/STAR is allowed and making/MAKE is not.
 
 ## NOT verified
@@ -134,9 +138,11 @@ Computer team vs computer team (`tools/head2head.mjs`, 400 games per pair, colou
 - Edge pass: online double-tap guard and Create/Join guard checked by code only (a single browser couldn't make the double send happen); two real phones in one room not run. Two tabs both visible side by side may both move the computer (same move, so harmless) — not run.
 
 - Improvement pass: install-to-home-screen and offline only in the pwa-check harness (WebKit), not on a real iPhone; share sheet (navigator.share) not run (headless falls back to clipboard); the assassin scene and win wave seen only in headless screenshots; quitting a rated game mid-way records nothing (a losing game can be dropped).
+- Wave 3: packs online checked by code and unit tests only (no two-browser room run); YouTube links open only checked as hrefs; Computer speed timing not timed on a phone; pack strength is the 50d stand-in, 150 games per pack (about ±4%).
 
 ## Rejected / parked
 - ~~Board difficulty score~~ no decision depends on it.
 - ~~Leaderboards~~ free-tier writes better spent on games.
-- ~~Custom word packs~~ no closeness data for unknown words.
+- ~~Custom (typed-in) word packs~~ no closeness data for unknown words. Built-in themed packs were built 10-28 instead.
+- ~~All-theme pack boards~~ computer wins fell 86% → 24% (10-28); mixed boards shipped.
 - ~~Calibrating odds to human guesses~~ parked: needs real play data.

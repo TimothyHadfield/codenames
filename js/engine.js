@@ -52,9 +52,23 @@ export function normCode(code) {
 
 // ---------------------------------------------------------------- boards
 // Classic: 25 words; the starting team has 9 agents, the other 8, 7 bystanders, 1 assassin.
-export function genClassic(code, nWords, version = VERSION) {
-  const rng = mulberry32(hashStr(`cn${version}:classic:${normCode(code)}`));
-  const words = shuffle([...Array(nWords).keys()], rng).slice(0, 25);
+// pack (optional): {id, idx: [board indexes], k} = a themed word pack; base boards (no pack) never change.
+// A pack board mixes k pack words (PACK_MIX) with base words: an all-food board is so tight the
+// computer's clues collapsed (Normal two-player wins 86% -> 24%); 13 of 25 gave 63%, 8 gives 77-82%
+// (150 boards per pack, 2026-10-28; see progress.md "Word packs").
+export const PACK_MIX = 8;
+const packSeed = pack => (pack ? `:${pack.id}${pack.version || 1}` : '');
+function drawWords(nWords, pack, rng) {
+  if (!pack) return shuffle([...Array(nWords).keys()], rng).slice(0, 25);
+  const k = Math.min(25, pack.k ?? PACK_MIX);
+  const own = new Set(pack.idx);
+  const mine = shuffle(pack.idx.slice(), rng).slice(0, k);
+  const rest = shuffle([...Array(nWords).keys()].filter(i => !own.has(i)), rng).slice(0, 25 - k);
+  return shuffle(mine.concat(rest), rng);
+}
+export function genClassic(code, nWords, version = VERSION, pack = null) {
+  const rng = mulberry32(hashStr(`cn${version}:classic:${normCode(code)}${packSeed(pack)}`));
+  const words = drawWords(nWords, pack, rng);
   const start = rng() < 0.5 ? 'R' : 'B';
   const other = start === 'R' ? 'B' : 'R';
   const pos = shuffle([...Array(25).keys()], rng);
@@ -67,9 +81,9 @@ export function genClassic(code, nWords, version = VERSION) {
 // Overlaps: 3 agents are agents on both sides; of side A's 3 assassins, 1 is an assassin on
 // side B, 1 is an agent on side B, 1 is a bystander on side B (and the same for side B).
 // So 15 different agents in all. Sources in docs/rules-check.md.
-export function genDuet(code, nWords, version = VERSION) {
-  const rng = mulberry32(hashStr(`cn${version}:duet:${normCode(code)}`));
-  const words = shuffle([...Array(nWords).keys()], rng).slice(0, 25);
+export function genDuet(code, nWords, version = VERSION, pack = null) {
+  const rng = mulberry32(hashStr(`cn${version}:duet:${normCode(code)}${packSeed(pack)}`));
+  const words = drawWords(nWords, pack, rng);
   // cell types as [sideA, sideB]
   const cells = [
     ...Array(3).fill(['G', 'G']),
@@ -105,6 +119,20 @@ export class Assoc {
     for (let c = 0; c < this.nC; c++) this.clueMean[c] /= this.nB * 127;
   }
   sim(b, c) { return this.sims[b * this.nC + c] / 127; }
+  // Word packs: the full board list (base words first, then every pack's new words, data/packs.json
+  // "extra") and one pack's rows (rowIdx = indexes into extra). Indexes never depend on which packs
+  // are loaded. clueMean stays the base words' own, so the computer's base play doesn't change.
+  addRows(fullBoard, rowIdx, rows) {
+    if (this.nB !== fullBoard.length) {
+      const base = this.nBase ?? this.nB;
+      const sims = new Int8Array(fullBoard.length * this.nC);
+      sims.set(this.sims.subarray(0, Math.min(this.sims.length, sims.length)));
+      this.sims = sims; this.nBase = base;
+      this.board = fullBoard; this.nB = fullBoard.length;
+      this.boardIdx = new Map(fullBoard.map((w, i) => [w, i]));
+    }
+    rowIdx.forEach((r, k) => this.sims.set(rows.subarray(k * this.nC, (k + 1) * this.nC), (this.nBase + r) * this.nC));
+  }
   clueIndex(word) {
     const w = String(word || '').trim().toLowerCase();
     return this.clueIdx.has(w) ? this.clueIdx.get(w) : -1;
@@ -321,8 +349,9 @@ export const other = t => (t === 'R' ? 'B' : 'R');
 // opts: {mode: 'teams' | 'coop'}  coop = the official two-player rules: one team (the starting
 // team) plays against an imaginary opponent who covers one of its own agents each turn.
 export function newClassic(code, nWords, opts = {}) {
-  const b = genClassic(code, nWords, opts.version);
+  const b = genClassic(code, nWords, opts.version, opts.pack);
   return {
+    rules: { unlimited: !!(opts.rules && opts.rules.unlimited) },
     game: 'classic', mode: opts.mode || 'teams', code: b.code, words: b.words, key: b.key,
     start: b.start, turn: b.start, phase: 'clue', revealed: Array(25).fill(false), by: Array(25).fill(null),
     clue: null, guessesLeft: 0, guessesMade: 0, winner: null, reason: '', history: [], turnNo: 1,
@@ -365,7 +394,8 @@ export function apply(state, action) {
       const n = action.n;
       if (!(Number.isInteger(n) && n >= -1 && n <= 9)) throw new Error('Bad number');
       s.clue = { word: String(action.word).trim().toLowerCase(), n };
-      s.guessesLeft = n <= 0 ? 99 : n + 1; // n+1 guesses; 0 and unlimited have no cap (99 = no cap, JSON-safe)
+      // n+1 guesses; 0 and unlimited have no cap (99 = no cap, JSON-safe). House rule "unlimited guesses": never a cap.
+      s.guessesLeft = n <= 0 || (s.rules && s.rules.unlimited) ? 99 : n + 1;
       s.guessesMade = 0;
       s.phase = 'guess';
       s.history.push({ team: t, clue: s.clue.word, n, guesses: [], targets: action.targets || null });
@@ -428,7 +458,7 @@ export function coopScore(s) {
 // 9 timer turns (standard). Players alternate giving clues. After the last timer turn,
 // sudden death: no more clues, players guess in turn and any non-agent loses.
 export function newDuet(code, nWords, opts = {}) {
-  const b = genDuet(code, nWords, opts.version);
+  const b = genDuet(code, nWords, opts.version, opts.pack);
   return {
     game: 'duet', code: b.code, words: b.words, keyA: b.keyA, keyB: b.keyB,
     found: Array(25).fill(false), // agent contacted (green covers)

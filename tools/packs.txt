@@ -1,0 +1,55 @@
+# Themed word packs (2026-10-28). Our own lists, family-friendly.
+# A line "## id | Name | one-line description" starts a pack; the words follow, any spacing.
+# Every word must be in GloVe 6B (300d and 50d) so the computer can clue and guess with it:
+# tools/build_packs.py checks that, and writes data/packs.json + data/packs/<id>.bin.
+# Optional 4th field "mix=N": pack words per board for that pack (default 8, PACK_MIX in js/engine.js).
+# Words already on the base list reuse the base row; new ones get rows of their own.
+# Changing a pack's words or order changes that pack's seeded boards (base boards never change).
+
+## food | Food | Fruit, snacks, dinner and the kitchen
+apple banana bread butter cake carrot cheese cherry chicken chocolate cookie egg honey jam
+lemon lime milk mint olive orange pepper pie pizza popcorn potato pumpkin rice salt sandwich
+soup steak sugar taco toast tomato waffle yogurt bacon bagel burger noodle pasta peach pear
+grape melon coconut garlic onion mushroom salad sausage sushi vanilla cinnamon ginger coffee
+tea juice cereal muffin pretzel pickle candy gravy oven kettle spoon fork knife bowl grill
+lobster
+
+## animals | Animals | Wild, farm, sea and pet animals | mix=5
+hedgehog bear bee bird camel cat cow crab crow deer dog dolphin duck eagle elephant falcon flamingo
+fox frog giraffe goat gorilla hamster hippo horse kangaroo koala lion lizard llama moose mouse
+octopus otter owl panda parrot peacock penguin pig rabbit raccoon rhino salmon seal shark sheep
+snail snake spider squirrel swan tiger toad turtle walrus whale wolf worm zebra beaver bison
+cheetah goose leopard moth ostrich pelican skunk sloth vulture badger buffalo
+
+## places | Places | Countries, cities and places to go
+africa egypt china japan india brazil mexico canada australia france germany italy spain
+england ireland russia greece london paris rome tokyo moscow venice berlin sydney hollywood
+everest sahara arctic antarctica alps nile amazon airport beach bridge castle desert farm
+forest harbor hospital hotel island jungle lake library museum ocean park river school temple
+volcano canyon glacier cathedral market mountain palace pyramid stadium subway tunnel village zoo
+bakery theater prison ranch valley swamp cave
+
+## science | Science | Space, atoms, labs and electronics
+atom battery cell chemistry comet crystal dinosaur electron energy fossil galaxy gene gravity
+laser lens magnet mercury microscope molecule neutron orbit oxygen planet plasma proton robot
+rocket satellite telescope virus acid carbon circuit voltage quantum nucleus asteroid eclipse
+meteor nebula saturn jupiter mars venus neptune pluto equation formula experiment laboratory
+radiation iron copper silver hydrogen helium neon uranium bacteria skeleton lung calculator
+computer signal prism spectrum vacuum friction pendulum compass thermometer engine transistor
+diode antenna
+
+## sports | Sports | Sports, games and the people who play them
+soccer football baseball hockey tennis golf boxing chess poker rugby cricket bowling surfing
+skiing archery karate judo wrestling marathon olympics medal trophy referee coach goal net
+racket helmet puck glove bat club dart dice card checkers bingo captain champion stadium team
+pitch court ring track relay sprint jump dive skate sled kayak canoe yacht saddle jockey
+umpire whistle jersey score touchdown dunk serve tackle puzzle domino marble kite frisbee
+trampoline gym yoga bicycle
+
+## pop | Pop & fun | Music, shows, parties and make-believe
+guitar drum piano violin trumpet saxophone microphone concert band jazz disco opera ballet
+alien zombie vampire ghost wizard dragon unicorn mermaid pirate ninja cowboy princess
+monster clown magician circus carnival karaoke podcast cartoon comic puppet mask costume parade
+fireworks balloon camera television radio orchestra choir laptop video popcorn celebrity star fan tour
+album party festival birthday holiday halloween christmas santa elf giant troll goblin knight
+treasure spy detective hero villain
