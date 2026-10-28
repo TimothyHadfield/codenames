@@ -6,7 +6,7 @@ import './fx.js';
 import { createSfx } from './sfx.js';
 import * as KIT from './kit.js?v=12';
 
-const BUILD = '2026-10-28.1';
+const BUILD = '2026-10-28.2';
 const LS = 'codenames:v1';
 const $ = (s, el = document) => el.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
